@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: Request) {
   try {
@@ -27,9 +28,11 @@ export async function POST(request: Request) {
 
     // Create a store settings record
     if (authData.user) {
+      const storeSettingsId = uuidv4();
       const { error: storeError } = await supabase
         .from('store_settings')
         .insert({
+          id: storeSettingsId,
           store_id: authData.user.id,
           store_name: storeName || 'My Store',
           email_templates: [],
