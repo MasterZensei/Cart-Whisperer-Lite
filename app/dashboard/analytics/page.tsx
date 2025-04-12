@@ -7,7 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
-import { useAuth } from "@/hooks/useAuth"
+import { useAuth } from "@/hooks/useAuth2"
 import { getCartRecoveryStats, getEmailEvents } from "@/lib/db-service"
 import { EmailEvent } from "@/lib/supabase"
 

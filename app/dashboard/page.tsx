@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { AbandonedCartsTab } from "./abandoned-carts"
 import { CreateCartForm } from "./create-cart-form"
 import { PerformanceTips } from "./performance-tips"
-import { useAuth } from "@/hooks/useAuth"
+import { useAuth } from "@/hooks/useAuth2"
 
 export default function DashboardPage() {
   const { user, signOut } = useAuth()

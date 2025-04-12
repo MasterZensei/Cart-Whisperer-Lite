@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { AuthProvider } from '@/hooks/useAuth'
+import { AuthProvider } from '@/hooks/useAuth2'
 
 export const metadata: Metadata = {
   title: 'Cart Whisperer - AI-Powered Abandoned Cart Recovery',

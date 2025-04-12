@@ -1,0 +1,1 @@
+Force rebuild with "use client" directive in useAuth.tsx 

@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Loader2, Plus, Pencil, Trash, Check } from "lucide-react"
 import { EmailTemplate } from "@/lib/supabase"
 import { getEmailTemplates, saveEmailTemplate } from "@/lib/db-service"
-import { useAuth } from "@/hooks/useAuth"
+import { useAuth } from "@/hooks/useAuth2"
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
