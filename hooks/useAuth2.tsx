@@ -2,6 +2,8 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { sessionManager } from '@/lib/session-manager';
+import { logger } from '@/lib/logger';
 
 type User = {
   id: string;
@@ -15,6 +17,7 @@ type AuthContextType = {
   signOut: () => Promise<void>;
   loading: boolean;
   error: string | null;
+  refreshSession: () => Promise<boolean>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -24,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   loading: true,
   error: null,
+  refreshSession: async () => false,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -52,7 +56,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const data = await response.json();
       return data.csrfToken;
     } catch (err) {
-      console.error('Error getting CSRF token:', err);
+      logger.error(err as Error, { context: 'auth:csrf' });
       return null;
     }
   };
@@ -63,24 +67,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       try {
         setLoading(true);
         
-        const response = await fetch('/api/auth/session', {
-          method: 'GET',
-          credentials: 'include',
-        });
-        
-        if (!response.ok) {
-          throw new Error('Session check failed');
-        }
-        
-        const data = await response.json();
-        
-        if (data.user) {
-          setUser(data.user);
+        // Use session manager to get current user
+        if (sessionManager) {
+          const isSessionValid = await sessionManager.isSessionValid();
+          
+          if (isSessionValid) {
+            const currentUser = sessionManager.getCurrentUser();
+            if (currentUser && currentUser.id && currentUser.email) {
+              setUser({
+                id: currentUser.id,
+                email: currentUser.email,
+              });
+            } else {
+              setUser(null);
+            }
+          } else {
+            setUser(null);
+          }
         } else {
-          setUser(null);
+          // Fallback to API call if session manager is not available
+          const response = await fetch('/api/auth/session', {
+            method: 'GET',
+            credentials: 'include',
+          });
+          
+          if (!response.ok) {
+            throw new Error('Session check failed');
+          }
+          
+          const data = await response.json();
+          
+          if (data.user) {
+            setUser(data.user);
+          } else {
+            setUser(null);
+          }
         }
       } catch (err) {
-        console.error('Session check error:', err);
+        logger.error(err as Error, { context: 'auth:session-check' });
         setUser(null);
       } finally {
         setLoading(false);
@@ -120,10 +144,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       setUser(data.user);
+      
+      // Initialize session manager after successful login
+      if (sessionManager) {
+        await sessionManager.initializeFromExistingSession?.();
+      }
+      
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed');
-      console.error('Sign in error:', err);
+      logger.error(err as Error, { context: 'auth:signin' });
       return false;
     } finally {
       setLoading(false);
@@ -162,7 +192,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
-      console.error('Sign up error:', err);
+      logger.error(err as Error, { context: 'auth:signup' });
       return false;
     } finally {
       setLoading(false);
@@ -174,16 +204,54 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setLoading(true);
       setError(null);
 
-      await fetch('/api/auth/signout', {
-        method: 'POST',
-        credentials: 'include',
-      });
+      // Use session manager for sign out if available
+      if (sessionManager) {
+        const { success, error } = await sessionManager.signOut();
+        if (!success && error) {
+          throw error;
+        }
+      } else {
+        // Fallback to API call
+        await fetch('/api/auth/signout', {
+          method: 'POST',
+          credentials: 'include',
+        });
+      }
 
       // Clear state
       setUser(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign out failed');
-      console.error('Sign out error:', err);
+      logger.error(err as Error, { context: 'auth:signout' });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Function to manually refresh the session
+  const refreshSession = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (sessionManager) {
+        // Use session manager to refresh
+        await sessionManager.refreshSession?.();
+        const isValid = await sessionManager.isSessionValid();
+        return isValid;
+      } else {
+        // Fallback to API call
+        const response = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          credentials: 'include',
+        });
+        
+        return response.ok;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Session refresh failed');
+      logger.error(err as Error, { context: 'auth:refresh-session' });
+      return false;
     } finally {
       setLoading(false);
     }
@@ -196,6 +264,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signOut,
     loading,
     error,
+    refreshSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

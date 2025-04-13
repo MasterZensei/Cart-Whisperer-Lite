@@ -1,13 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense, lazy } from "react"
 import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ShoppingCart, Mail, Settings, BarChart3, Lightbulb, LogOut, Sparkles, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { AbandonedCartsTab } from "./abandoned-carts"
-import { CreateCartForm } from "./create-cart-form"
-import { PerformanceTips } from "./performance-tips"
 import { useAuth } from "@/hooks/useAuth2"
 import {
   Sheet,
@@ -19,6 +16,11 @@ import {
 } from "@/components/ui/sheet"
 import { useToast } from "@/hooks/use-toast"
 import { useIsMobile } from "@/hooks/use-mobile"
+
+// Lazy loaded components
+const AbandonedCartsTab = lazy(() => import('./abandoned-carts').then(mod => ({ default: mod.AbandonedCartsTab })));
+const CreateCartForm = lazy(() => import('./create-cart-form').then(mod => ({ default: mod.CreateCartForm })));
+const PerformanceTips = lazy(() => import('./performance-tips').then(mod => ({ default: mod.PerformanceTips })));
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -199,15 +201,21 @@ function TabContent({ activeTab }: { activeTab: string }) {
   return (
     <>
       <TabsContent value="abandoned-carts" className="mt-0">
-        <AbandonedCartsTab />
+        <Suspense fallback={<TabSkeleton />}>
+          <AbandonedCartsTab />
+        </Suspense>
       </TabsContent>
 
       <TabsContent value="create-cart" className="mt-0">
-        <CreateCartForm />
+        <Suspense fallback={<TabSkeleton />}>
+          <CreateCartForm />
+        </Suspense>
       </TabsContent>
 
       <TabsContent value="optimization" className="mt-0">
-        <PerformanceTips />
+        <Suspense fallback={<TabSkeleton />}>
+          <PerformanceTips />
+        </Suspense>
       </TabsContent>
 
       <TabsContent value="analytics" className="mt-0">
@@ -251,6 +259,20 @@ function TabContent({ activeTab }: { activeTab: string }) {
       </TabsContent>
     </>
   )
+}
+
+// Tab loading skeleton
+function TabSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="h-8 w-1/4 animate-pulse rounded bg-gray-200"></div>
+      <div className="space-y-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-12 w-full animate-pulse rounded bg-gray-200"></div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // Loading skeleton
