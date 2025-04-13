@@ -66,25 +66,46 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const checkSession = async () => {
       try {
         setLoading(true);
+        console.log("Checking session...");
+        
+        // Set a timeout to prevent infinite loading
+        const timeoutId = setTimeout(() => {
+          console.log("Auth check timeout reached - forcing loading state to false");
+          setLoading(false);
+          setUser(null);
+        }, 5000);
         
         // Use session manager to get current user
         if (sessionManager) {
-          const isSessionValid = await sessionManager.isSessionValid();
-          
-          if (isSessionValid) {
-            const currentUser = sessionManager.getCurrentUser();
-            if (currentUser && currentUser.id && currentUser.email) {
-              setUser({
-                id: currentUser.id,
-                email: currentUser.email,
-              });
+          console.log("Using sessionManager to validate session");
+          try {
+            const isSessionValid = await sessionManager.isSessionValid();
+            console.log("Session validation result:", isSessionValid);
+            
+            if (isSessionValid) {
+              const currentUser = sessionManager.getCurrentUser();
+              console.log("Current user from session:", currentUser);
+              
+              if (currentUser && currentUser.id && currentUser.email) {
+                setUser({
+                  id: currentUser.id,
+                  email: currentUser.email,
+                });
+              } else {
+                console.log("User data incomplete in session");
+                setUser(null);
+              }
             } else {
+              console.log("Session is not valid");
               setUser(null);
             }
-          } else {
+          } catch (sessionError) {
+            console.error("Error validating session:", sessionError);
+            logger.error(sessionError as Error, { context: 'auth:session-validation' });
             setUser(null);
           }
         } else {
+          console.log("Session manager not available, falling back to API");
           // Fallback to API call if session manager is not available
           try {
             const response = await fetch('/api/auth/session', {
@@ -97,6 +118,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             }
             
             const data = await response.json();
+            console.log("Session API response:", data);
             
             if (data.user) {
               setUser(data.user);
@@ -104,15 +126,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               setUser(null);
             }
           } catch (fetchError) {
+            console.error("API session check failed:", fetchError);
             logger.error(fetchError as Error, { context: 'auth:session-check-api' });
             setUser(null);
           }
         }
+        
+        // Clear the timeout if we reach this point
+        clearTimeout(timeoutId);
       } catch (err) {
+        console.error("Session check error:", err);
         logger.error(err as Error, { context: 'auth:session-check' });
         setUser(null);
       } finally {
         // Ensure loading state changes even if errors occur
+        console.log("Finished checking session, setting loading to false");
         setLoading(false);
       }
     };

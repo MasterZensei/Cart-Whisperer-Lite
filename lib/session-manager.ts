@@ -38,13 +38,23 @@ export class SessionManager {
    */
   public async initializeFromExistingSession() {
     try {
-      const { data } = await supabase.auth.getSession();
+      console.log("Initializing from existing session");
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error("Error getting session:", error);
+        return;
+      }
       
       if (data && data.session) {
+        console.log("Found existing session, setting current user");
         this.currentUser = data.session.user;
         this.startRefreshTimer(data.session);
+      } else {
+        console.log("No existing session found");
       }
     } catch (error) {
+      console.error("Exception in initializeFromExistingSession:", error);
       logger.error(error as Error, { context: 'session:initialize' });
     }
   }
@@ -132,9 +142,19 @@ export class SessionManager {
    */
   public async isSessionValid(): Promise<boolean> {
     try {
-      const { data } = await supabase.auth.getSession();
-      return !!(data && data.session);
+      console.log("Checking if session is valid");
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error("Error in isSessionValid:", error);
+        return false;
+      }
+      
+      const isValid = !!(data && data.session);
+      console.log("Session validation result:", isValid, data?.session ? "Session exists" : "No session");
+      return isValid;
     } catch (error) {
+      console.error("Exception in isSessionValid:", error);
       logger.error(error as Error, { context: 'session:validate' });
       return false;
     }
@@ -144,6 +164,7 @@ export class SessionManager {
    * Get the current user
    */
   public getCurrentUser() {
+    console.log("Getting current user:", this.currentUser);
     return this.currentUser;
   }
   

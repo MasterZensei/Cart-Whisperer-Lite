@@ -12,6 +12,7 @@ if (process.env.NODE_ENV === 'development') {
 
 if (!supabaseUrl || !supabaseKey) {
   console.error('Missing Supabase environment variables. Check your .env file.');
+  console.error('This will cause authentication issues and loading screens.');
   
   // In development, provide clear guidance on what's missing
   if (process.env.NODE_ENV === 'development') {
