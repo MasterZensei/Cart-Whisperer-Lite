@@ -43,7 +43,7 @@ export default function Home() {
             </CardContent>
             <CardFooter>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/analytics">View Analytics</Link>
+                <Link href="/dashboard/analytics">View Analytics</Link>
               </Button>
             </CardFooter>
           </Card>
