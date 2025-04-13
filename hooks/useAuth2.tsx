@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 
 type User = {
   id: string;
@@ -43,31 +44,42 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   // Initialize auth state from localStorage on mount
   useEffect(() => {
     console.log("Auth provider initializing");
-    const storedUser = localStorage.getItem('user');
-    const storedSession = localStorage.getItem('session');
+    
+    try {
+      const storedUser = localStorage.getItem('user');
+      const storedSession = localStorage.getItem('session');
 
-    console.log("Stored user found:", !!storedUser);
-    console.log("Stored session found:", !!storedSession);
+      console.log("Stored user found:", !!storedUser);
+      console.log("Stored session found:", !!storedSession);
 
-    if (storedUser && storedSession) {
-      const parsedUser = JSON.parse(storedUser);
-      const parsedSession = JSON.parse(storedSession);
+      if (storedUser && storedSession) {
+        const parsedUser = JSON.parse(storedUser);
+        const parsedSession = JSON.parse(storedSession);
 
-      // Check if session is expired
-      if (parsedSession.expires_at && parsedSession.expires_at * 1000 > Date.now()) {
-        console.log("Valid session found, setting user:", parsedUser.email);
-        setUser(parsedUser);
-        setSession(parsedSession);
-      } else {
-        // Clear if expired
-        console.log("Session expired, clearing localStorage");
-        localStorage.removeItem('user');
-        localStorage.removeItem('session');
+        console.log("Parsed stored user:", parsedUser);
+
+        // Check if session is expired
+        if (parsedSession.expires_at && parsedSession.expires_at * 1000 > Date.now()) {
+          console.log("Valid session found, setting user:", parsedUser.email);
+          setUser(parsedUser);
+          setSession(parsedSession);
+        } else {
+          // Clear if expired
+          console.log("Session expired, clearing localStorage");
+          localStorage.removeItem('user');
+          localStorage.removeItem('session');
+        }
       }
+    } catch (err) {
+      console.error("Error loading auth from localStorage:", err);
+      // Clear localStorage if there was an error parsing
+      localStorage.removeItem('user');
+      localStorage.removeItem('session');
     }
 
     setLoading(false);
@@ -78,6 +90,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setLoading(true);
       setError(null);
 
+      console.log("Auth hook: starting sign in process");
       const response = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: {
@@ -87,11 +100,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       const data = await response.json();
+      console.log("Auth hook: received API response", response.status);
 
       if (!response.ok) {
         throw new Error(data.error || 'Sign in failed');
       }
 
+      // Check if data has the right structure
+      if (!data.user || !data.user.id) {
+        console.error("Auth hook: Invalid user data received", data);
+        throw new Error('Invalid user data received');
+      }
+
+      console.log("Auth hook: setting user state", data.user.email);
       setUser(data.user);
       setSession(data.session);
 
@@ -99,10 +120,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       localStorage.setItem('user', JSON.stringify(data.user));
       localStorage.setItem('session', JSON.stringify(data.session));
       
+      console.log("Auth hook: sign in successful, can now redirect");
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed');
-      console.error('Sign in error:', err);
+      console.error('Auth hook: Sign in error:', err);
       return false;
     } finally {
       setLoading(false);

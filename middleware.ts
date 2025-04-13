@@ -4,6 +4,8 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 
 // This middleware protects routes that require authentication
 export async function middleware(request: NextRequest) {
+  console.log('Middleware running on path:', request.nextUrl.pathname);
+  
   // Create a Supabase client configured for use with middleware
   const supabase = createMiddlewareClient({ req: request, res: NextResponse.next() })
   
@@ -14,6 +16,8 @@ export async function middleware(request: NextRequest) {
   const {
     data: { session },
   } = await supabase.auth.getSession()
+  
+  console.log('Middleware session check:', !!session);
   
   // Define protected routes
   const protectedRoutes = [
@@ -28,16 +32,21 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith(route)
   )
   
+  console.log('Is protected route:', isProtectedRoute);
+  
   // Redirect to login if trying to access a protected route without a session
   if (isProtectedRoute && !session) {
+    console.log('No session, redirecting to login');
     return NextResponse.redirect(new URL('/login', request.url))
   }
   
   // Redirect to dashboard if already logged in and trying to access login/signup
   if ((request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup') && session) {
+    console.log('Already logged in, redirecting to dashboard');
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
   
+  console.log('Middleware passing through');
   return NextResponse.next()
 }
 

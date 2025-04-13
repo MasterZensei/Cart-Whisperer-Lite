@@ -19,9 +19,21 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const success = await signIn(email, password)
-    if (success) {
-      router.push("/dashboard")
+    console.log("Login form submitted for:", email)
+    
+    try {
+      const success = await signIn(email, password)
+      console.log("Sign in result:", success)
+      
+      if (success) {
+        console.log("Sign in successful, attempting to redirect to dashboard")
+        // Force a hard navigation to dashboard to ensure we get a fresh state
+        window.location.href = "/dashboard"
+      } else {
+        console.log("Sign in failed, staying on login page")
+      }
+    } catch (err) {
+      console.error("Error during sign in process:", err)
     }
   }
 

@@ -36,9 +36,20 @@ export default function SignupPage() {
       return
     }
 
-    const success = await signUp(email, password, storeName)
-    if (success) {
-      router.push("/dashboard")
+    try {
+      console.log("Signup form submitted for:", email)
+      const success = await signUp(email, password, storeName)
+      console.log("Sign up result:", success)
+      
+      if (success) {
+        console.log("Sign up successful, redirecting to dashboard")
+        // Force a hard navigation to dashboard
+        window.location.href = "/dashboard"
+      } else {
+        console.log("Sign up failed, staying on signup page")
+      }
+    } catch (err) {
+      console.error("Error during sign up process:", err)
     }
   }
 

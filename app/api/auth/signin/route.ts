@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     console.log('Supabase key defined:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
     // Sign in the user with Supabase Auth
+    console.log('Attempting Supabase auth...');
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -33,8 +34,14 @@ export async function POST(request: Request) {
     }
 
     console.log('Signin successful, user:', data.user.id);
+    console.log('Session data present:', !!data.session);
     
-    return NextResponse.json({
+    // Check if session data is complete
+    if (!data.session || !data.session.access_token) {
+      console.error('Warning: Session data incomplete', data.session);
+    }
+    
+    const responseData = {
       user: {
         id: data.user.id,
         email: data.user.email,
@@ -43,7 +50,11 @@ export async function POST(request: Request) {
         access_token: data.session?.access_token,
         expires_at: data.session?.expires_at,
       },
-    });
+    };
+    
+    console.log('Sending response data:', JSON.stringify(responseData));
+    
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error('Signin error:', error);
     return NextResponse.json(
