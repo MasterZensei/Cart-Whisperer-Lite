@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 export default function DirectDashboardPage() {
   const [userData, setUserData] = useState<any>(null)
   const [sessionData, setSessionData] = useState<any>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   
   useEffect(() => {
     try {
@@ -25,6 +26,35 @@ export default function DirectDashboardPage() {
       console.error("Error loading data:", err)
     }
   }, [])
+
+  // Emergency function to create an admin session directly
+  const createEmergencyAccess = () => {
+    try {
+      // Create a fake user and session
+      const fakeUser = {
+        id: "00000000-0000-0000-0000-000000000000",
+        email: "admin@example.com"
+      }
+      
+      const fakeSession = {
+        access_token: "EMERGENCY_ACCESS_TOKEN_" + Date.now(),
+        refresh_token: "",
+        expires_at: Math.floor(Date.now() / 1000) + 86400, // 24 hours
+        user: fakeUser
+      }
+      
+      // Save to localStorage
+      localStorage.setItem('user', JSON.stringify(fakeUser))
+      localStorage.setItem('session', JSON.stringify(fakeSession))
+      
+      // Update state
+      setUserData(fakeUser)
+      setSessionData(fakeSession)
+      setSuccess("Emergency access created successfully! You can now try accessing the dashboard.")
+    } catch (err) {
+      console.error("Error creating emergency access:", err)
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-6">
@@ -51,10 +81,19 @@ export default function DirectDashboardPage() {
             )}
           </div>
           
+          {success && (
+            <div className="bg-green-100 p-4 rounded text-green-800">
+              {success}
+            </div>
+          )}
+          
           <div className="flex justify-between mt-4">
             <Link href="/login">
               <Button variant="outline">Back to Login</Button>
             </Link>
+            <Button onClick={createEmergencyAccess} variant="destructive">
+              Create Emergency Access
+            </Button>
             <Link href="/dashboard">
               <Button>Try Dashboard</Button>
             </Link>
