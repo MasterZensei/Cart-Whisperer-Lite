@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/hooks/useAuth2"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,8 @@ export default function LoginPage() {
   const { signIn, loading, error, user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectPath = searchParams.get('redirect')
   const { toast } = useToast()
   const emailInputRef = useRef<HTMLInputElement>(null)
   
@@ -29,14 +31,35 @@ export default function LoginPage() {
     }
   }, [])
   
-  // If user is already authenticated, redirect to dashboard
+  // If user is already authenticated, redirect to dashboard or the original requested page
   useEffect(() => {
     console.log("Login page - Auth state:", { user, loading, error });
     
     if (user) {
-      router.push("/dashboard")
+      if (redirectPath) {
+        const decodedPath = decodeURIComponent(redirectPath)
+        console.log("Login page - Redirecting to:", decodedPath);
+        
+        // Dispatch a custom event to notify of navigation
+        window.dispatchEvent(new CustomEvent('before-reactnavigation'));
+        
+        // Small delay to ensure navigation event is processed
+        setTimeout(() => {
+          router.push(decodedPath)
+        }, 50);
+      } else {
+        console.log("Login page - Redirecting to dashboard");
+        
+        // Dispatch a custom event to notify of navigation
+        window.dispatchEvent(new CustomEvent('before-reactnavigation'));
+        
+        // Small delay to ensure navigation event is processed
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 50);
+      }
     }
-  }, [user, router])
+  }, [user, router, redirectPath])
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,7 +73,27 @@ export default function LoginPage() {
           title: "Logged in successfully",
           description: "Redirecting you to the dashboard...",
         })
-        router.push("/dashboard")
+        
+        // Dispatch a custom event to notify of navigation
+        window.dispatchEvent(new CustomEvent('before-reactnavigation'));
+        
+        // Redirect to the original requested page if available
+        if (redirectPath) {
+          const decodedPath = decodeURIComponent(redirectPath)
+          console.log("Login handleSubmit - Redirecting to:", decodedPath);
+          
+          // Small delay to ensure navigation event is processed
+          setTimeout(() => {
+            router.push(decodedPath)
+          }, 50);
+        } else {
+          console.log("Login handleSubmit - Redirecting to dashboard");
+          
+          // Small delay to ensure navigation event is processed
+          setTimeout(() => {
+            router.push("/dashboard")
+          }, 50);
+        }
       } else {
         toast({
           title: "Login failed",

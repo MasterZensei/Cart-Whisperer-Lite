@@ -1,82 +1,87 @@
-import { NextResponse } from "next/server"
-import { initializeMockCarts } from "@/lib/mock-data"
-import { getAllCarts, createCart, convertToMockCart } from "@/lib/db-service"
+import { NextRequest, NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
+import { createMockShopifyCheckout, shopifyCheckoutToCart } from '@/lib/shopify-types';
 
-export async function GET() {
+// In-memory store for mocked abandoned carts - exported so it can be modified by other endpoints
+export let mockCarts: any[] = [];
+
+export async function GET(request: NextRequest) {
   try {
-    // Get carts from Supabase
-    let carts = await getAllCarts();
-    
-    // If no carts in database, initialize with mock data
-    if (carts.length === 0) {
-      const mockCarts = initializeMockCarts();
-      // Note: In a real implementation, we would import the migrateMockCartsToSupabase function
-      // and use it to migrate mock carts to Supabase here.
-      // For simplicity, we'll just return the mock carts for now
-      return NextResponse.json({ carts: mockCarts })
+    // If no carts exist yet, create some sample data
+    if (mockCarts.length === 0) {
+      const sampleEmails = [
+        'john.doe@example.com',
+        'sarah.smith@example.com',
+        'alex.johnson@example.com',
+        'maria.garcia@example.com'
+      ];
+      
+      // Create sample Shopify abandoned checkouts
+      for (const email of sampleEmails) {
+        const cartId = uuidv4();
+        const mockCheckout = createMockShopifyCheckout(cartId, email);
+        
+        // Add to our mock store using our internal format
+        mockCarts.push(shopifyCheckoutToCart(mockCheckout));
+      }
     }
     
-    // Convert to mock cart format for backward compatibility
-    const mockCarts = carts.map(cart => convertToMockCart(cart));
-    
-    return NextResponse.json({ carts: mockCarts })
+    return NextResponse.json({ carts: mockCarts });
   } catch (error) {
-    console.error("Error fetching carts:", error)
+    console.error('Error in GET /api/mock/carts:', error);
     return NextResponse.json(
-      { error: "Failed to fetch carts", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    )
+      { error: 'Failed to fetch abandoned carts' },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    // Parse the request body
-    const data = await request.json().catch((error) => {
-      console.error("Error parsing request body:", error)
-      return null
-    })
-
-    if (!data) {
-      return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
-    }
-
-    // Validate required fields
-    if (!data.customerEmail || !Array.isArray(data.items) || data.items.length === 0) {
-      return NextResponse.json({ error: "Missing required fields: customerEmail and items" }, { status: 400 })
-    }
-
-    // Calculate total price if not provided
-    let totalPrice = data.totalPrice
-    if (!totalPrice) {
-      totalPrice = data.items.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0)
-    }
-
-    // Create cart in Supabase
-    const newCart = await createCart({
-      customer_email: data.customerEmail,
-      customer_name: data.customerName,
-      items: data.items.map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        price: item.price,
-        quantity: item.quantity,
-        image: item.image,
-      })),
-      total_price: totalPrice,
-      recovery_url: `https://example.com/cart/${data.id || 'recover'}`,
-      store_id: 'demo-store',
-    });
+    const data = await request.json();
     
-    // Convert to mock cart format for backward compatibility
-    const mockCart = convertToMockCart(newCart);
-
-    return NextResponse.json({ cart: mockCart })
+    // Validate required fields
+    if (!data.customerEmail || !data.items || !Array.isArray(data.items) || data.items.length === 0) {
+      return NextResponse.json(
+        { error: 'Missing required fields: customerEmail and at least one item' },
+        { status: 400 }
+      );
+    }
+    
+    // Create a new cart with a unique ID
+    const now = new Date().toISOString();
+    const newCart = {
+      id: uuidv4(),
+      customerEmail: data.customerEmail,
+      customerName: data.customerName || null,
+      items: data.items.map((item: any) => ({
+        id: uuidv4(),
+        title: item.title,
+        price: parseFloat(item.price) || 0,
+        quantity: parseInt(item.quantity) || 1,
+        image: item.image
+      })),
+      totalPrice: data.totalPrice || data.items.reduce(
+        (sum: number, item: any) => sum + (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1),
+        0
+      ),
+      createdAt: now,
+      updatedAt: now,
+      recoveryUrl: `https://yourstore.myshopify.com/checkouts/${uuidv4()}/recover`
+    };
+    
+    // Add to mock store
+    mockCarts.push(newCart);
+    
+    return NextResponse.json({
+      success: true,
+      cart: newCart
+    });
   } catch (error) {
-    console.error("Error creating cart:", error)
+    console.error('Error in POST /api/mock/carts:', error);
     return NextResponse.json(
-      { error: "Failed to create cart", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    )
+      { error: 'Failed to create abandoned cart' },
+      { status: 500 }
+    );
   }
 }

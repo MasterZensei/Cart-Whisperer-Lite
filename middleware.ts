@@ -8,27 +8,66 @@ export async function middleware(request: NextRequest) {
   const isPublicPath = path === '/login' || 
                        path === '/signup' || 
                        path === '/forgot-password' ||
+                       path === '/' || // Home page is public
                        path.startsWith('/api/auth');
   
   // Get auth token from cookies or headers
   const authToken = request.cookies.get('supabase-auth-token')?.value;
   
+  // Set a custom header to signal to the client-side that redirection is happening
+  // This will help prevent blank screens during navigation
+  const response = NextResponse.next();
+  
+  // Add headers to improve navigation experience
+  response.headers.set('x-middleware-cache', 'no-cache');
+  response.headers.set('x-requested-path', path);
+  response.headers.set('Cache-Control', 'no-store, must-revalidate');
+  response.headers.set('x-navigation-transition', 'true');
+  
   // If accessing protected route without auth token, redirect to login
   if (!isPublicPath && !authToken) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    const redirectUrl = new URL('/login', request.url);
+    
+    // Add query parameters to improve the navigation experience
+    redirectUrl.searchParams.set('redirect', encodeURIComponent(path));
+    redirectUrl.searchParams.set('from', 'middleware');
+    
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    
+    // Add navigation transition headers to redirect
+    redirectResponse.headers.set('x-middleware-cache', 'no-cache');
+    redirectResponse.headers.set('x-requested-path', path);
+    redirectResponse.headers.set('Cache-Control', 'no-store, must-revalidate');
+    redirectResponse.headers.set('x-navigation-transition', 'true');
+    
+    return redirectResponse;
   }
   
   // If already logged in and trying to access login/signup, redirect to dashboard
   if (authToken && (path === '/login' || path === '/signup')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
+    
+    // Add navigation transition headers to redirect
+    redirectResponse.headers.set('x-middleware-cache', 'no-cache');
+    redirectResponse.headers.set('x-requested-path', path);
+    redirectResponse.headers.set('Cache-Control', 'no-store, must-revalidate');
+    redirectResponse.headers.set('x-navigation-transition', 'true');
+    
+    return redirectResponse;
   }
 
-  return NextResponse.next();
+  return response;
 }
 
-// Apply middleware to all routes
+// Apply middleware selectively to reduce unnecessary processing
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|public/|api/health).*)',
+    // Apply to auth-related routes and dashboard
+    '/dashboard/:path*',
+    '/settings/:path*',
+    '/api/auth/:path*',
+    '/login',
+    '/signup',
+    '/forgot-password',
   ],
 } 

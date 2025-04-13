@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from 'next/server';
+import { ShopifyAbandonedCheckout, shopifyCheckoutToCart } from '@/lib/shopify-types';
 import { OpenAI } from "openai"
 import { v4 as uuidv4 } from "uuid"
 import { sendRecoveryEmail } from "@/lib/email"
@@ -10,441 +11,127 @@ import { getUserAISettings, getPromptTemplate } from "@/lib/ai-service"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 
-export async function POST(request: Request) {
-  console.log("Generate email API called")
-
-  try {
-    // Parse the incoming request body
-    const body = await request.json()
-
-    // Extract data from request
-    const { customer, cart, store, sendEmail = false, templateType = 'ai', promptId = null } = body
-
-    // Validate required data
-    if (!customer || !customer.email) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Missing customer information",
-        },
-        { status: 400 },
-      )
-    }
-
-    if (!cart || !cart.items || !Array.isArray(cart.items) || cart.items.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Missing or invalid cart information",
-        },
-        { status: 400 },
-      )
-    }
-
-    // Count total items in cart
-    const totalItems = cart.items.reduce((sum: number, item: any) => sum + item.quantity, 0)
-
-    // Generate a unique tracking ID for this email
-    const trackingId = uuidv4()
-
-    // Format items list for the prompt
-    const itemsList = cart.items
-      .map(
-        (item: any) =>
-          `${item.quantity}x ${item.title} - ${typeof item.price === "number" ? item.price.toFixed(2) : item.price}`,
-      )
-      .join("\n")
-
-    // First, check if a specific template was requested
-    if (templateType !== 'ai') {
-      let emailContent = '';
-      let subject = '';
+// Mock function to simulate AI email generation
+async function generateEmailContent(data: any): Promise<{ subject: string; emailContent: string }> {
+  // In a real app, this would call OpenAI or another AI service
+  
+  const customerName = data.customer.name || 'Valued Customer';
+  const storeName = data.store.name || 'Our Store';
+  const cartItems = data.cart.items.map((item: any) => `${item.quantity}x ${item.title}`).join(', ');
+  const totalPrice = typeof data.cart.total === 'number' 
+    ? `$${data.cart.total.toFixed(2)}` 
+    : data.cart.total;
+  const recoveryUrl = data.cart.recoveryUrl;
+  
+  // Generate a simple email template
+  const subject = `Complete your purchase from ${storeName}`;
+  
+  const emailContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Hello ${customerName},</h2>
       
-      const templateData = {
-        customerName: customer.name || "Valued Customer",
-        customerEmail: customer.email,
-        items: cart.items,
-        totalPrice: cart.total,
-        recoveryUrl: cart.recoveryUrl,
-        storeName: store?.name || "Your Store"
+      <p>We noticed you left some items in your shopping cart at ${storeName}.</p>
+      
+      <div style="background-color: #f8f8f8; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <h3 style="margin-top: 0;">Your Cart</h3>
+        <p><strong>Items:</strong> ${cartItems}</p>
+        <p><strong>Total:</strong> ${totalPrice}</p>
+      </div>
+      
+      <p>Would you like to complete your purchase? We're holding these items for you, but they might not be available for long.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${recoveryUrl}" style="background-color: #4CAF50; color: white; padding: 12px 25px; text-decoration: none; border-radius: 4px; font-weight: bold;">Complete Your Purchase</a>
+      </div>
+      
+      <p>If you have any questions or need assistance with your order, please don't hesitate to contact our customer support team.</p>
+      
+      <p>Best regards,<br>The ${storeName} Team</p>
+    </div>
+  `;
+  
+  return { subject, emailContent };
+}
+
+// Mock function to simulate sending an email
+async function sendEmail(data: any): Promise<boolean> {
+  // In a real app, this would connect to an email service like SendGrid, Mailchimp, etc.
+  console.log(`[Mock] Sending email to: ${data.customer.email}`);
+  
+  // Simulate network latency
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Always succeed in mock implementation
+  return true;
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const data = await request.json();
+    
+    // Validate input data
+    if (!data.customer || !data.customer.email || !data.cart) {
+      return NextResponse.json(
+        { error: 'Missing required fields: customer.email and cart' },
+        { status: 400 }
+      );
+    }
+    
+    // Handle Shopify data format if provided
+    if (data.shopifyCheckout) {
+      const shopifyData = data.shopifyCheckout as ShopifyAbandonedCheckout;
+      // Convert to our internal format
+      const cart = shopifyCheckoutToCart(shopifyData);
+      
+      // Update the data object with our internal format
+      data.customer = {
+        email: cart.customerEmail,
+        name: cart.customerName || 'Customer'
       };
       
-      // Use the requested template type
-      if (templateType === 'standard') {
-        const template = generateStandardTemplate(templateData);
-        emailContent = template.html;
-        subject = template.subject;
-      } else if (templateType === 'discount') {
-        const template = generateDiscountTemplate(templateData);
-        emailContent = template.html;
-        subject = template.subject;
-      } else if (templateType === 'fomo') {
-        const template = generateFomoTemplate(templateData);
-        emailContent = template.html;
-        subject = template.subject;
-      } else {
-        // Try to get custom template from Supabase
-        try {
-          const templates = await getEmailTemplates(store?.id || 'demo-store');
-          const customTemplate = templates.find(t => t.id === templateType);
-          
-          if (customTemplate) {
-            // Replace placeholders in the custom template
-            let html = customTemplate.html_content
-              .replace(/\{customerName\}/g, customer.name || "Valued Customer")
-              .replace(/\{customerEmail\}/g, customer.email)
-              .replace(/\{totalPrice\}/g, typeof cart.total === "number" ? cart.total.toFixed(2) : cart.total)
-              .replace(/\{recoveryUrl\}/g, cart.recoveryUrl)
-              .replace(/\{storeName\}/g, store?.name || "Your Store");
-              
-            // Replace items placeholder with formatted items
-            html = html.replace(/\{items\}/g, formatItems(cart.items));
-            
-            emailContent = html;
-            subject = customTemplate.subject
-              .replace(/\{customerName\}/g, customer.name || "Valued Customer")
-              .replace(/\{storeName\}/g, store?.name || "Your Store");
-          } else {
-            // Fall back to standard template if custom template not found
-            const fallback = generateStandardTemplate(templateData);
-            emailContent = fallback.html;
-            subject = fallback.subject;
-          }
-        } catch (error) {
-          console.error("Error getting custom template:", error);
-          const fallback = generateStandardTemplate(templateData);
-          emailContent = fallback.html;
-          subject = fallback.subject;
-        }
+      data.cart = {
+        items: cart.items,
+        total: cart.totalPrice,
+        recoveryUrl: cart.recoveryUrl,
+        id: cart.id
+      };
+    }
+    
+    // Generate email content
+    const { subject, emailContent } = await generateEmailContent(data);
+    
+    // Send the email if requested
+    if (data.sendEmail) {
+      const success = await sendEmail({
+        customer: data.customer,
+        subject,
+        emailContent
+      });
+      
+      if (!success) {
+        throw new Error('Failed to send email');
       }
       
-      // If sendEmail is true, send the email
-      if (sendEmail) {
-        console.log("Sending email to:", customer.email)
-
-        try {
-          // Add tracking to links
-          const emailWithTracking = addTrackingToLinks(
-            emailContent,
-            trackingId,
-            process.env.HOST || "http://localhost:3000",
-          )
-
-          // Send the email
-          await sendRecoveryEmail({
-            to: customer.email,
-            subject,
-            html: emailWithTracking,
-            trackingId,
-          })
-
-          console.log("Email sent successfully")
-
-          // Record the email in analytics
-          await recordEmailSent(trackingId, cart.id, customer.email, store?.id || "demo-store")
-        } catch (emailError: any) {
-          console.error("Error sending email:", emailError)
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Failed to send email",
-              details: emailError.message || String(emailError),
-            },
-            { status: 500 },
-          )
-        }
-      }
-
-      console.log("Returning successful response with template email")
-
       return NextResponse.json({
         success: true,
-        emailContent,
+        message: 'Email sent successfully',
         subject,
-        trackingId,
-        templateType,
-      })
+        emailContent
+      });
     }
-
-    console.log("Initializing OpenAI client")
     
-    // Get user ID for fetching custom settings and prompts
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
-    const userId = session?.user?.id || 'anonymous'
+    // Otherwise just return the generated content
+    return NextResponse.json({
+      subject,
+      emailContent
+    });
     
-    try {
-      // Get user's AI settings
-      const aiSettings = await getUserAISettings(userId);
-      
-      // Initialize OpenAI client
-      const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      })
-      
-      // Get system and user prompts
-      let systemPrompt, userPrompt;
-      
-      if (promptId) {
-        // If a specific prompt template was requested, use it
-        const promptTemplate = await getPromptTemplate(promptId);
-        if (promptTemplate) {
-          systemPrompt = promptTemplate.system_prompt;
-          userPrompt = promptTemplate.user_prompt;
-        } else {
-          // Fall back to default if the requested template isn't found
-          systemPrompt = `You are an expert email marketer specializing in abandoned cart recovery with a proven track record of high conversion rates. 
-          
-          Create a personalized, compelling email to encourage the customer to complete their purchase. The email should be:
-          
-          1. Personalized to the customer and their specific cart items
-          2. Concise and focused on conversion
-          3. Including a sense of urgency without being pushy
-          4. Highlighting the benefits of the products they've selected
-          5. Formatted as clean, responsive HTML with inline CSS
-          6. Including a prominent, compelling call-to-action button
-          
-          Return your response as HTML that can be directly used in an email. Include a subject line at the beginning of your response prefixed with 'SUBJECT: '.
-          
-          The subject line should be attention-grabbing and personalized.`;
-          
-          userPrompt = `Generate a recovery email for a customer with these details:
-            
-          CUSTOMER INFORMATION:
-          - Name: {{customerName}}
-          - Email: {{customerEmail}}
-          
-          CART DETAILS:
-          - Total Items: {{totalItems}}
-          - Total Value: {{cartTotal}}
-          - Items in Cart:
-          {{itemsList}}
-          
-          STORE INFORMATION:
-          - Store Name: {{storeName}}
-          - Recovery URL: {{recoveryUrl}}
-          
-          ADDITIONAL CONTEXT:
-          - Make the email mobile-friendly
-          - Include a prominent "Complete Your Purchase" button linking to the recovery URL
-          - Keep the tone friendly and helpful, not pushy
-          - Suggest that their items might sell out soon if appropriate
-          - Include a small section addressing potential concerns (like shipping, returns, etc.)`;
-        }
-      } else {
-        // Use default prompts
-        systemPrompt = `You are an expert email marketer specializing in abandoned cart recovery with a proven track record of high conversion rates. 
-        
-        Create a personalized, compelling email to encourage the customer to complete their purchase. The email should be:
-        
-        1. Personalized to the customer and their specific cart items
-        2. Concise and focused on conversion
-        3. Including a sense of urgency without being pushy
-        4. Highlighting the benefits of the products they've selected
-        5. Formatted as clean, responsive HTML with inline CSS
-        6. Including a prominent, compelling call-to-action button
-        
-        Return your response as HTML that can be directly used in an email. Include a subject line at the beginning of your response prefixed with 'SUBJECT: '.
-        
-        The subject line should be attention-grabbing and personalized.`;
-        
-        userPrompt = `Generate a recovery email for a customer with these details:
-          
-        CUSTOMER INFORMATION:
-        - Name: {{customerName}}
-        - Email: {{customerEmail}}
-        
-        CART DETAILS:
-        - Total Items: {{totalItems}}
-        - Total Value: {{cartTotal}}
-        - Items in Cart:
-        {{itemsList}}
-        
-        STORE INFORMATION:
-        - Store Name: {{storeName}}
-        - Recovery URL: {{recoveryUrl}}
-        
-        ADDITIONAL CONTEXT:
-        - Make the email mobile-friendly
-        - Include a prominent "Complete Your Purchase" button linking to the recovery URL
-        - Keep the tone friendly and helpful, not pushy
-        - Suggest that their items might sell out soon if appropriate
-        - Include a small section addressing potential concerns (like shipping, returns, etc.)`;
-      }
-      
-      // Replace placeholders in the user prompt with actual values
-      userPrompt = userPrompt
-        .replace(/{{customerName}}/g, customer.name || "Valued Customer")
-        .replace(/{{customerEmail}}/g, customer.email)
-        .replace(/{{totalItems}}/g, totalItems.toString())
-        .replace(/{{cartTotal}}/g, typeof cart.total === "number" ? cart.total.toFixed(2) : cart.total)
-        .replace(/{{itemsList}}/g, itemsList)
-        .replace(/{{storeName}}/g, store?.name || "Our Store")
-        .replace(/{{recoveryUrl}}/g, cart.recoveryUrl || "https://example.com/cart");
-
-      console.log(`Calling OpenAI API with model: ${aiSettings.model}`)
-
-      try {
-        // Generate personalized email content using OpenAI with user's settings
-        const completion = await openai.chat.completions.create({
-          model: aiSettings.model,
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: userPrompt,
-            },
-          ],
-          temperature: aiSettings.temperature,
-          max_tokens: aiSettings.maxTokens,
-        })
-
-        console.log("OpenAI API response received successfully")
-
-        const fullResponse = completion.choices[0].message.content || ""
-
-        // Extract subject line and HTML content
-        const subjectMatch = fullResponse.match(/SUBJECT:\s*(.*?)(?:\n|$)/)
-        const subject = subjectMatch ? subjectMatch[1].trim() : "Complete your purchase"
-
-        // Remove the subject line from the content
-        const emailContent = fullResponse.replace(/SUBJECT:\s*(.*?)(?:\n|$)/, "").trim()
-
-        // If sendEmail is true, send the email
-        if (sendEmail) {
-          console.log("Sending email to:", customer.email)
-
-          try {
-            // Add tracking to links
-            const emailWithTracking = addTrackingToLinks(
-              emailContent,
-              trackingId,
-              process.env.HOST || "http://localhost:3000",
-            )
-
-            // Send the email
-            await sendRecoveryEmail({
-              to: customer.email,
-              subject,
-              html: emailWithTracking,
-              trackingId,
-            })
-
-            console.log("Email sent successfully")
-
-            // Record the email in analytics
-            await recordEmailSent(trackingId, cart.id, customer.email, store?.id || "demo-store")
-          } catch (emailError: any) {
-            console.error("Error sending email:", emailError)
-            return NextResponse.json(
-              {
-                success: false,
-                error: "Failed to send email",
-                details: emailError.message || String(emailError),
-              },
-              { status: 500 },
-            )
-          }
-        }
-
-        console.log("Returning successful response")
-
-        return NextResponse.json({
-          success: true,
-          emailContent,
-          subject,
-          trackingId,
-        })
-      } catch (openaiError: any) {
-        console.error("OpenAI API error:", openaiError)
-        
-        // Fall back to standard template if OpenAI fails
-        console.log("Falling back to standard template")
-        
-        const templateData = {
-          customerName: customer.name || "Valued Customer",
-          customerEmail: customer.email,
-          items: cart.items,
-          totalPrice: cart.total,
-          recoveryUrl: cart.recoveryUrl,
-          storeName: store?.name || "Your Store"
-        };
-        
-        const fallbackTemplate = generateStandardTemplate(templateData);
-        const emailContent = fallbackTemplate.html;
-        const subject = fallbackTemplate.subject;
-        
-        // If sendEmail is true, send the email
-        if (sendEmail) {
-          console.log("Sending fallback email to:", customer.email)
-
-          try {
-            // Add tracking to links
-            const emailWithTracking = addTrackingToLinks(
-              emailContent,
-              trackingId,
-              process.env.HOST || "http://localhost:3000",
-            )
-
-            // Send the email
-            await sendRecoveryEmail({
-              to: customer.email,
-              subject,
-              html: emailWithTracking,
-              trackingId,
-            })
-
-            console.log("Fallback email sent successfully")
-
-            // Record the email in analytics
-            await recordEmailSent(trackingId, cart.id, customer.email, store?.id || "demo-store")
-          } catch (emailError: any) {
-            console.error("Error sending fallback email:", emailError)
-            return NextResponse.json(
-              {
-                success: false,
-                error: "Failed to send fallback email",
-                details: emailError.message || String(emailError),
-              },
-              { status: 500 },
-            )
-          }
-        }
-
-        console.log("Returning successful response with fallback email")
-
-        return NextResponse.json({
-          success: true,
-          emailContent,
-          subject,
-          trackingId,
-          fallback: true,
-        })
-      }
-    } catch (error: any) {
-      console.error("Error generating email:", error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to generate email",
-          details: error.message || String(error),
-        },
-        { status: 500 },
-      )
-    }
-  } catch (error: any) {
-    console.error("Unexpected error:", error)
+  } catch (error) {
+    console.error('Error in POST /api/generate-email:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: "An unexpected error occurred",
-        details: error.message || String(error),
-      },
-      { status: 500 },
-    )
+      { error: 'Failed to generate or send email', details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
   }
 }
 

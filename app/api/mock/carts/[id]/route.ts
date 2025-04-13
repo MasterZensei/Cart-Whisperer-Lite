@@ -1,43 +1,76 @@
-import { NextResponse } from "next/server"
-import { getCartById, deleteCart, convertToMockCart } from "@/lib/db-service"
+import { NextRequest, NextResponse } from 'next/server';
+import { mockCarts } from '../route';
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const id = params.id
-    const cart = await getCartById(id)
-
-    if (!cart) {
-      return NextResponse.json({ error: "Cart not found" }, { status: 404 })
+    const id = params.id;
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Cart ID is required' },
+        { status: 400 }
+      );
     }
-
-    // Convert to mock cart format for backward compatibility
-    const mockCart = convertToMockCart(cart);
-
-    return NextResponse.json({ cart: mockCart })
+    
+    // Find the cart in the mock carts array
+    const cart = mockCarts.find(cart => cart.id === id);
+    
+    if (!cart) {
+      return NextResponse.json(
+        { error: 'Cart not found' },
+        { status: 404 }
+      );
+    }
+    
+    return NextResponse.json({ cart });
   } catch (error) {
-    console.error(`Error fetching cart ${params.id}:`, error)
+    console.error('Error in GET /api/mock/carts/[id]:', error);
     return NextResponse.json(
-      { error: "Failed to fetch cart", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    )
+      { error: 'Failed to fetch cart' },
+      { status: 500 }
+    );
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const id = params.id
-    const success = await deleteCart(id)
-
-    if (!success) {
-      return NextResponse.json({ error: "Cart not found or could not be deleted" }, { status: 404 })
+    const id = params.id;
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Cart ID is required' },
+        { status: 400 }
+      );
     }
-
-    return NextResponse.json({ success: true })
+    
+    // Find the cart index
+    const cartIndex = mockCarts.findIndex(cart => cart.id === id);
+    
+    if (cartIndex === -1) {
+      return NextResponse.json(
+        { error: 'Cart not found' },
+        { status: 404 }
+      );
+    }
+    
+    // Remove the cart from the array
+    mockCarts.splice(cartIndex, 1);
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Cart deleted successfully'
+    });
   } catch (error) {
-    console.error(`Error deleting cart ${params.id}:`, error)
+    console.error('Error in DELETE /api/mock/carts/[id]:', error);
     return NextResponse.json(
-      { error: "Failed to delete cart", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    )
+      { error: 'Failed to delete cart' },
+      { status: 500 }
+    );
   }
 }

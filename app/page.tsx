@@ -1,8 +1,13 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { CartList } from "@/components/cart-list"
+import { Suspense } from "react"
+import { CartListSkeleton } from "@/components/skeleton/cart-list-skeleton"
+import { getAllCarts } from "@/lib/cart-service"
+import ValueProposition from "@/components/value-proposition"
 
-export default function Home() {
+export default async function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-b from-white to-gray-100">
       <div className="max-w-4xl w-full space-y-8">
@@ -48,6 +53,18 @@ export default function Home() {
             </CardFooter>
           </Card>
         </div>
+
+        <div className="my-8 flex items-center justify-between">
+          <h1 className="text-3xl font-bold tracking-tight">Abandoned Carts</h1>
+          <Link href="/settings">
+            <Button>Settings</Button>
+          </Link>
+        </div>
+        <Suspense fallback={<CartListSkeleton />}>
+          <CartList />
+        </Suspense>
+        
+        <ValueProposition />
       </div>
     </main>
   )

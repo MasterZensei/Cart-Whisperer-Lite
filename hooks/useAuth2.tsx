@@ -68,12 +68,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setLoading(true);
         console.log("Checking session...");
         
-        // Set a timeout to prevent infinite loading
+        // Set a timeout to prevent infinite loading - reduced from 5s to 2s for faster fallback
         const timeoutId = setTimeout(() => {
           console.log("Auth check timeout reached - forcing loading state to false");
           setLoading(false);
           setUser(null);
-        }, 5000);
+        }, 2000);
         
         // Use session manager to get current user
         if (sessionManager) {
@@ -103,6 +103,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             console.error("Error validating session:", sessionError);
             logger.error(sessionError as Error, { context: 'auth:session-validation' });
             setUser(null);
+            
+            // Clear the timeout if we reach this point
+            clearTimeout(timeoutId);
+            setLoading(false);
           }
         } else {
           console.log("Session manager not available, falling back to API");
@@ -129,6 +133,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             console.error("API session check failed:", fetchError);
             logger.error(fetchError as Error, { context: 'auth:session-check-api' });
             setUser(null);
+            
+            // Clear the timeout if we reach this point
+            clearTimeout(timeoutId);
+            setLoading(false);
           }
         }
         
@@ -145,12 +153,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     };
     
-    checkSession();
+    // Wrap the session check in a try-catch to ensure it never breaks the UI
+    try {
+      checkSession();
+    } catch (err) {
+      console.error("Critical session check error:", err);
+      setLoading(false);
+      setUser(null);
+    }
 
     // Handle client-side navigation auth state
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        checkSession();
+        try {
+          checkSession();
+        } catch (err) {
+          console.error("Error during visibility change check:", err);
+          setLoading(false);
+        }
       }
     };
 

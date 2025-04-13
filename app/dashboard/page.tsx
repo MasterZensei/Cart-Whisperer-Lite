@@ -35,17 +35,26 @@ export default function DashboardPage() {
     console.log("Dashboard page - Auth state:", { user, loading });
     
     if (!loading && !user) {
-      router.push("/login")
+      console.log("Dashboard page - User not authenticated, redirecting to login");
+      
+      // Dispatch a custom event to notify of navigation
+      window.dispatchEvent(new CustomEvent('before-reactnavigation'));
+      
+      setTimeout(() => {
+        router.push("/login");
+      }, 50);
     }
   }, [loading, user, router])
   
   // Show loading state while checking auth
   if (loading) {
+    console.log("Dashboard page - Still loading auth state");
     return <DashboardSkeleton />
   }
   
   // If no user is found after loading completes, don't render the dashboard content
   if (!user) {
+    console.log("Dashboard page - No user found, showing loading state");
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -54,12 +63,20 @@ export default function DashboardPage() {
   }
 
   const handleSignOut = async () => {
+    console.log("Dashboard page - Signing out");
+    
+    // Dispatch a custom event to notify of navigation
+    window.dispatchEvent(new CustomEvent('before-reactnavigation'));
+    
     await authSignOut()
     toast({
       title: "Signed out successfully",
       description: "You have been logged out of your account.",
     })
-    router.push("/login")
+    
+    setTimeout(() => {
+      router.push("/login")
+    }, 50);
   }
   
   const handleTabClick = (value: string) => {
@@ -264,7 +281,7 @@ function TabContent({ activeTab }: { activeTab: string }) {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="outline" className="w-full">Configure Sequences</Button>
+                <Button variant="outline" className="w-full" onClick={() => router.push("/dashboard/automation?tab=sequences")}>Configure Sequences</Button>
               </CardFooter>
             </Card>
             <Card>
@@ -289,7 +306,7 @@ function TabContent({ activeTab }: { activeTab: string }) {
                 </ul>
               </CardContent>
               <CardFooter>
-                <Button variant="outline" className="w-full">Adjust Settings</Button>
+                <Button variant="outline" className="w-full" onClick={() => router.push("/dashboard/automation?tab=settings")}>Adjust Settings</Button>
               </CardFooter>
             </Card>
           </div>
@@ -393,7 +410,13 @@ function RecoveryHubContent() {
             </div>
           </div>
           <div className="flex justify-center mt-6">
-            <Button>Start Recovery Process</Button>
+            <Button onClick={() => {
+              // Find the element and focus the abandoned carts section
+              const abandonedCartsSection = document.querySelector('[data-testid="abandoned-carts-section"]');
+              if (abandonedCartsSection) {
+                abandonedCartsSection.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}>Start Recovery Process</Button>
           </div>
         </div>
       </div>

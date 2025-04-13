@@ -100,7 +100,7 @@ export function AbandonedCartsTab() {
 
   if (carts.length === 0) {
     return (
-      <div className="rounded-md border p-8 text-center">
+      <div className="rounded-md border p-8 text-center" data-testid="abandoned-carts-section">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
           <ShoppingCart className="h-6 w-6 text-gray-500" />
         </div>
@@ -122,7 +122,7 @@ export function AbandonedCartsTab() {
 
   return (
     <>
-      <div className="grid gap-6">
+      <div className="grid gap-6" data-testid="abandoned-carts-section">
         <Card>
           <CardHeader>
             <CardTitle>Recent Abandoned Carts</CardTitle>
