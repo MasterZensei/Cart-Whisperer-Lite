@@ -40,24 +40,29 @@ export default function DashboardPage() {
       // Dispatch a custom event to notify of navigation
       window.dispatchEvent(new CustomEvent('before-reactnavigation'));
       
-      setTimeout(() => {
-        router.push("/login");
-      }, 50);
+      // Use immediate redirection for better UX
+      router.push("/login?redirect=" + encodeURIComponent("/dashboard"));
     }
   }, [loading, user, router])
   
-  // Show loading state while checking auth
+  // Show a more meaningful loading state
   if (loading) {
     console.log("Dashboard page - Still loading auth state");
-    return <DashboardSkeleton />
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background space-y-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="text-sm text-muted-foreground">Verifying your session...</p>
+      </div>
+    )
   }
   
-  // If no user is found after loading completes, don't render the dashboard content
+  // If no user is found after loading completes, show a better message and redirection
   if (!user) {
-    console.log("Dashboard page - No user found, showing loading state");
+    console.log("Dashboard page - No user found, redirecting to login");
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background space-y-4">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="text-sm text-muted-foreground">Redirecting to login page...</p>
       </div>
     )
   }

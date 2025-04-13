@@ -82,6 +82,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const isSessionValid = await sessionManager.isSessionValid();
             console.log("Session validation result:", isSessionValid);
             
+            // Clear the timeout as we got a response
+            clearTimeout(timeoutId);
+            
             if (isSessionValid) {
               const currentUser = sessionManager.getCurrentUser();
               console.log("Current user from session:", currentUser);
@@ -98,6 +101,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             } else {
               console.log("Session is not valid");
               setUser(null);
+              
+              // Try to clean up any stale tokens
+              try {
+                await sessionManager.signOut?.();
+              } catch (cleanupError) {
+                console.error("Error clearing invalid session:", cleanupError);
+              }
             }
           } catch (sessionError) {
             console.error("Error validating session:", sessionError);
@@ -115,10 +125,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const response = await fetch('/api/auth/session', {
               method: 'GET',
               credentials: 'include',
+              headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+              }
             });
             
+            // Clear the timeout as we got a response
+            clearTimeout(timeoutId);
+            
             if (!response.ok) {
-              throw new Error('Session check failed');
+              console.log("Session API response not OK:", response.status);
+              setUser(null);
+              setLoading(false);
+              return;
             }
             
             const data = await response.json();
@@ -139,9 +159,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setLoading(false);
           }
         }
-        
-        // Clear the timeout if we reach this point
-        clearTimeout(timeoutId);
       } catch (err) {
         console.error("Session check error:", err);
         logger.error(err as Error, { context: 'auth:session-check' });

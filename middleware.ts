@@ -13,6 +13,7 @@ export async function middleware(request: NextRequest) {
   
   // Get auth token from cookies or headers
   const authToken = request.cookies.get('supabase-auth-token')?.value;
+  const hasAuthToken = !!authToken && authToken.length > 10; // Basic validation
   
   // Set a custom header to signal to the client-side that redirection is happening
   // This will help prevent blank screens during navigation
@@ -25,7 +26,8 @@ export async function middleware(request: NextRequest) {
   response.headers.set('x-navigation-transition', 'true');
   
   // If accessing protected route without auth token, redirect to login
-  if (!isPublicPath && !authToken) {
+  if (!isPublicPath && !hasAuthToken) {
+    console.log(`Middleware: Redirecting unauthenticated request from ${path} to login`);
     const redirectUrl = new URL('/login', request.url);
     
     // Add query parameters to improve the navigation experience
@@ -44,7 +46,8 @@ export async function middleware(request: NextRequest) {
   }
   
   // If already logged in and trying to access login/signup, redirect to dashboard
-  if (authToken && (path === '/login' || path === '/signup')) {
+  if (hasAuthToken && (path === '/login' || path === '/signup')) {
+    console.log(`Middleware: Redirecting authenticated user from ${path} to dashboard`);
     const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
     
     // Add navigation transition headers to redirect
@@ -63,9 +66,11 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     // Apply to auth-related routes and dashboard
+    '/',
     '/dashboard/:path*',
     '/settings/:path*',
     '/api/auth/:path*',
+    '/api/ai-prompts/:path*', // Also protect AI prompts routes
     '/login',
     '/signup',
     '/forgot-password',
