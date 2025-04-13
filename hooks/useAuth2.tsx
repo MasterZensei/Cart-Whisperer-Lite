@@ -15,8 +15,8 @@ type Session = {
 type AuthContextType = {
   user: User | null;
   session: Session | null;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, storeName?: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<boolean>;
+  signUp: (email: string, password: string, storeName?: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   loading: boolean;
   error: string | null;
@@ -25,8 +25,8 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
-  signIn: async () => {},
-  signUp: async () => {},
+  signIn: async () => false,
+  signUp: async () => false,
   signOut: async () => {},
   loading: true,
   error: null,
@@ -46,8 +46,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Initialize auth state from localStorage on mount
   useEffect(() => {
+    console.log("Auth provider initializing");
     const storedUser = localStorage.getItem('user');
     const storedSession = localStorage.getItem('session');
+
+    console.log("Stored user found:", !!storedUser);
+    console.log("Stored session found:", !!storedSession);
 
     if (storedUser && storedSession) {
       const parsedUser = JSON.parse(storedUser);
@@ -55,10 +59,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       // Check if session is expired
       if (parsedSession.expires_at && parsedSession.expires_at * 1000 > Date.now()) {
+        console.log("Valid session found, setting user:", parsedUser.email);
         setUser(parsedUser);
         setSession(parsedSession);
       } else {
         // Clear if expired
+        console.log("Session expired, clearing localStorage");
         localStorage.removeItem('user');
         localStorage.removeItem('session');
       }
@@ -92,9 +98,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Store in localStorage for persistence
       localStorage.setItem('user', JSON.stringify(data.user));
       localStorage.setItem('session', JSON.stringify(data.session));
+      
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed');
       console.error('Sign in error:', err);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -120,10 +129,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       // After signup, sign in the user
-      await signIn(email, password);
+      return await signIn(email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
       console.error('Sign up error:', err);
+      return false;
     } finally {
       setLoading(false);
     }

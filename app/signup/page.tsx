@@ -36,8 +36,10 @@ export default function SignupPage() {
       return
     }
 
-    await signUp(email, password, storeName)
-    router.push("/dashboard")
+    const success = await signUp(email, password, storeName)
+    if (success) {
+      router.push("/dashboard")
+    }
   }
 
   return (

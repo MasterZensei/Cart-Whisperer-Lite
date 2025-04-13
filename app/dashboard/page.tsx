@@ -14,10 +14,16 @@ export default function DashboardPage() {
   const { user, signOut } = useAuth()
   const router = useRouter()
   
+  console.log("Dashboard rendering, user:", user);
+  
   // Check if user is authenticated
   useEffect(() => {
+    console.log("Dashboard useEffect - auth check, user:", user);
     if (!user) {
+      console.log("No user found, redirecting to login");
       router.push("/login")
+    } else {
+      console.log("User authenticated in dashboard:", user.email);
     }
   }, [user, router])
 
