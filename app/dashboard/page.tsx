@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, lazy } from "react"
 import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ShoppingCart, Mail, Settings, BarChart3, Lightbulb, LogOut, Sparkles, Menu } from "lucide-react"
+import { ShoppingCart, Mail, Settings, BarChart3, Lightbulb, LogOut, Sparkles, Menu, PlusCircle, ArrowRight, ZapIcon, Brain, MessageSquare, Repeat } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/useAuth2"
 import {
@@ -14,6 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { useIsMobile } from "@/hooks/use-mobile"
 
@@ -25,7 +26,7 @@ const PerformanceTips = lazy(() => import('./performance-tips').then(mod => ({ d
 export default function DashboardPage() {
   const router = useRouter()
   const { user, signOut: authSignOut, loading } = useAuth()
-  const [activeTab, setActiveTab] = useState("abandoned-carts")
+  const [activeTab, setActiveTab] = useState("recovery-hub")
   const { toast } = useToast()
   const isMobile = useIsMobile()
   
@@ -43,7 +44,11 @@ export default function DashboardPage() {
   
   // If no user is found after loading completes, don't render the dashboard content
   if (!user) {
-    return null
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
   }
 
   const handleSignOut = async () => {
@@ -63,7 +68,7 @@ export default function DashboardPage() {
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 border-b bg-white shadow-sm">
         <div className="container flex h-16 items-center justify-between px-4">
-          <h1 className="text-lg font-semibold">Cart Whisperer Dashboard</h1>
+          <h1 className="text-lg font-semibold">Cart Whisperer</h1>
           <div className="flex items-center gap-4">
             <span className="hidden text-sm text-muted-foreground md:inline-block">
               {user?.email}
@@ -88,31 +93,23 @@ export default function DashboardPage() {
             <Tabs 
               value={activeTab} 
               onValueChange={handleTabClick}
-              defaultValue="abandoned-carts">
+              defaultValue="recovery-hub">
               <TabsList className="mb-6 flex w-full flex-wrap justify-start overflow-x-auto">
-                <TabsTrigger value="abandoned-carts">
+                <TabsTrigger value="recovery-hub">
                   <ShoppingCart className="mr-2 h-4 w-4" />
-                  Abandoned Carts
+                  Recovery Hub
                 </TabsTrigger>
-                <TabsTrigger value="create-cart">
-                  <Mail className="mr-2 h-4 w-4" />
-                  Create Test Cart
+                <TabsTrigger value="ai-templates">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  AI Templates
                 </TabsTrigger>
                 <TabsTrigger value="analytics">
                   <BarChart3 className="mr-2 h-4 w-4" />
                   Analytics
                 </TabsTrigger>
-                <TabsTrigger value="templates">
-                  <Mail className="mr-2 h-4 w-4" />
-                  Email Templates
-                </TabsTrigger>
-                <TabsTrigger value="ai-prompts">
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  AI Prompts
-                </TabsTrigger>
-                <TabsTrigger value="optimization">
-                  <Lightbulb className="mr-2 h-4 w-4" />
-                  Optimization
+                <TabsTrigger value="automation">
+                  <Repeat className="mr-2 h-4 w-4" />
+                  Automation
                 </TabsTrigger>
                 <TabsTrigger value="settings">
                   <Settings className="mr-2 h-4 w-4" />
@@ -140,12 +137,10 @@ function MobileTabs({
   renderContent: () => React.ReactNode
 }) {
   const tabLabels: Record<string, { icon: React.ReactNode, label: string }> = {
-    "abandoned-carts": { icon: <ShoppingCart className="h-4 w-4" />, label: "Abandoned Carts" },
-    "create-cart": { icon: <Mail className="h-4 w-4" />, label: "Create Test Cart" },
+    "recovery-hub": { icon: <ShoppingCart className="h-4 w-4" />, label: "Recovery Hub" },
+    "ai-templates": { icon: <Sparkles className="h-4 w-4" />, label: "AI Templates" },
     "analytics": { icon: <BarChart3 className="h-4 w-4" />, label: "Analytics" },
-    "templates": { icon: <Mail className="h-4 w-4" />, label: "Email Templates" },
-    "ai-prompts": { icon: <Sparkles className="h-4 w-4" />, label: "AI Prompts" },
-    "optimization": { icon: <Lightbulb className="h-4 w-4" />, label: "Optimization" },
+    "automation": { icon: <Repeat className="h-4 w-4" />, label: "Automation" },
     "settings": { icon: <Settings className="h-4 w-4" />, label: "Settings" },
   }
   
@@ -198,66 +193,323 @@ function MobileTabs({
 
 // Extracted tab content component
 function TabContent({ activeTab }: { activeTab: string }) {
+  const router = useRouter();
+  
   return (
     <>
-      <TabsContent value="abandoned-carts" className="mt-0">
-        <Suspense fallback={<TabSkeleton />}>
-          <AbandonedCartsTab />
-        </Suspense>
+      <TabsContent value="recovery-hub" className="mt-0">
+        <RecoveryHubContent />
       </TabsContent>
 
-      <TabsContent value="create-cart" className="mt-0">
-        <Suspense fallback={<TabSkeleton />}>
-          <CreateCartForm />
-        </Suspense>
-      </TabsContent>
-
-      <TabsContent value="optimization" className="mt-0">
-        <Suspense fallback={<TabSkeleton />}>
-          <PerformanceTips />
-        </Suspense>
+      <TabsContent value="ai-templates" className="mt-0">
+        <AITemplatesContent />
       </TabsContent>
 
       <TabsContent value="analytics" className="mt-0">
         <div className="rounded-md border p-6">
-          <h3 className="text-lg font-medium mb-4">Analytics</h3>
-          {/* Analytics content will go here */}
-          <Button onClick={() => window.location.href = "/dashboard/analytics"}>
+          <h3 className="text-2xl font-bold mb-4">Analytics Dashboard</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Recovery Rate</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">24%</p>
+                <p className="text-xs text-muted-foreground">+5% from last month</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Revenue Recovered</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">$4,280</p>
+                <p className="text-xs text-muted-foreground">+$1,200 from last month</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Email Open Rate</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">42%</p>
+                <p className="text-xs text-muted-foreground">+8% from last month</p>
+              </CardContent>
+            </Card>
+          </div>
+          <Button onClick={() => router.push("/dashboard/analytics")}>
             View Detailed Analytics
           </Button>
         </div>
       </TabsContent>
 
-      <TabsContent value="ai-prompts" className="mt-0">
+      <TabsContent value="automation" className="mt-0">
         <div className="rounded-md border p-6">
-          <h3 className="text-lg font-medium mb-4">AI Prompts</h3>
-          {/* AI Prompts content will go here */}
-          <Button onClick={() => window.location.href = "/dashboard/ai-prompts"}>
-            Manage AI Prompts
-          </Button>
-        </div>
-      </TabsContent>
-
-      <TabsContent value="templates" className="mt-0">
-        <div className="rounded-md border p-6">
-          <h3 className="text-lg font-medium mb-4">Email Templates</h3>
-          {/* Templates content will go here */}
-          <Button onClick={() => window.location.href = "/dashboard/templates"}>
-            Manage Email Templates
-          </Button>
+          <h3 className="text-2xl font-bold mb-4">Automation Center</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Email Sequence Builder</CardTitle>
+                <CardDescription>Create multi-step recovery sequences</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-2 text-muted-foreground">
+                  <div className="bg-primary text-primary-foreground flex items-center justify-center w-8 h-8 rounded-full">1</div>
+                  <ArrowRight className="h-4 w-4" />
+                  <div className="bg-primary/20 text-primary flex items-center justify-center w-8 h-8 rounded-full">2</div>
+                  <ArrowRight className="h-4 w-4" />
+                  <div className="bg-primary/20 text-primary flex items-center justify-center w-8 h-8 rounded-full">3</div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" className="w-full">Configure Sequences</Button>
+              </CardFooter>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Schedule Settings</CardTitle>
+                <CardDescription>Timing and frequency settings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center">
+                    <span className="flex-1">First email delay:</span>
+                    <span className="font-medium">4 hours</span>
+                  </li>
+                  <li className="flex items-center">
+                    <span className="flex-1">Follow-up delay:</span>
+                    <span className="font-medium">2 days</span>
+                  </li>
+                  <li className="flex items-center">
+                    <span className="flex-1">Max emails per cart:</span>
+                    <span className="font-medium">3</span>
+                  </li>
+                </ul>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" className="w-full">Adjust Settings</Button>
+              </CardFooter>
+            </Card>
+          </div>
         </div>
       </TabsContent>
 
       <TabsContent value="settings" className="mt-0">
         <div className="rounded-md border p-6">
-          <h3 className="text-lg font-medium mb-4">Settings</h3>
-          {/* Settings content will go here */}
-          <Button onClick={() => window.location.href = "/settings"}>
+          <h3 className="text-2xl font-bold mb-4">Account Settings</h3>
+          <Button onClick={() => router.push("/settings")}>
             Manage Settings
           </Button>
         </div>
       </TabsContent>
     </>
+  )
+}
+
+// Recovery Hub Content
+function RecoveryHubContent() {
+  const router = useRouter();
+  
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Recovery Hub</h2>
+          <p className="text-muted-foreground">Manage and recover abandoned carts</p>
+        </div>
+        <Button onClick={() => router.push("/dashboard/create-cart-form")}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Create Test Cart
+        </Button>
+      </div>
+      
+      {/* Recovery Status Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Waiting for Recovery</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">12</p>
+            <p className="text-xs text-muted-foreground">Carts ready for action</p>
+          </CardContent>
+          <CardFooter>
+            <Button variant="ghost" size="sm" className="w-full">View All</Button>
+          </CardFooter>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">In Progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">5</p>
+            <p className="text-xs text-muted-foreground">Active recovery attempts</p>
+          </CardContent>
+          <CardFooter>
+            <Button variant="ghost" size="sm" className="w-full">View All</Button>
+          </CardFooter>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Recovered</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">8</p>
+            <p className="text-xs text-muted-foreground">This month</p>
+          </CardContent>
+          <CardFooter>
+            <Button variant="ghost" size="sm" className="w-full">View All</Button>
+          </CardFooter>
+        </Card>
+      </div>
+      
+      {/* Recovery Flow */}
+      <div className="rounded-md border">
+        <div className="p-6">
+          <h3 className="text-xl font-bold mb-4">Quick Recovery Process</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="flex flex-col items-center text-center p-4 rounded-lg border bg-card">
+              <div className="bg-primary/10 p-3 rounded-full mb-3">
+                <ShoppingCart className="h-6 w-6 text-primary" />
+              </div>
+              <h4 className="font-medium mb-2">1. Select Cart</h4>
+              <p className="text-sm text-muted-foreground">Choose from pending recovery carts</p>
+            </div>
+            <div className="flex flex-col items-center text-center p-4 rounded-lg border bg-card">
+              <div className="bg-primary/10 p-3 rounded-full mb-3">
+                <Sparkles className="h-6 w-6 text-primary" />
+              </div>
+              <h4 className="font-medium mb-2">2. Apply AI Template</h4>
+              <p className="text-sm text-muted-foreground">Select or customize a recovery template</p>
+            </div>
+            <div className="flex flex-col items-center text-center p-4 rounded-lg border bg-card">
+              <div className="bg-primary/10 p-3 rounded-full mb-3">
+                <Mail className="h-6 w-6 text-primary" />
+              </div>
+              <h4 className="font-medium mb-2">3. Send & Track</h4>
+              <p className="text-sm text-muted-foreground">Send recovery email and track results</p>
+            </div>
+          </div>
+          <div className="flex justify-center mt-6">
+            <Button>Start Recovery Process</Button>
+          </div>
+        </div>
+      </div>
+      
+      <Suspense fallback={<TabSkeleton />}>
+        <AbandonedCartsTab />
+      </Suspense>
+    </div>
+  )
+}
+
+// AI Templates Content
+function AITemplatesContent() {
+  const router = useRouter();
+  
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">AI Templates</h2>
+          <p className="text-muted-foreground">Create and manage AI-powered recovery templates</p>
+        </div>
+        <Button onClick={() => router.push("/dashboard/ai-prompts")}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Create New Template
+        </Button>
+      </div>
+      
+      {/* AI Features */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Product Focused</CardTitle>
+            <CardDescription>Highlights abandoned product benefits</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">
+              <p>Uses AI to analyze product features and create compelling content focused on product benefits.</p>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" size="sm">Preview</Button>
+            <Button size="sm">Use Template</Button>
+          </CardFooter>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Limited Time Offer</CardTitle>
+            <CardDescription>Creates urgency with special deals</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">
+              <p>Generates time-sensitive offers and countdown language to motivate quick action.</p>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" size="sm">Preview</Button>
+            <Button size="sm">Use Template</Button>
+          </CardFooter>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Customer Focused</CardTitle>
+            <CardDescription>Addresses customer pain points</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">
+              <p>Creates personalized messaging that addresses specific customer needs based on purchase history.</p>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" size="sm">Preview</Button>
+            <Button size="sm">Use Template</Button>
+          </CardFooter>
+        </Card>
+      </div>
+      
+      {/* Custom Template Builder */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Custom Template Builder</CardTitle>
+          <CardDescription>Create a personalized template with AI assistance</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border p-4 mb-4 bg-muted/50">
+            <div className="flex items-start gap-4">
+              <div className="bg-primary/10 p-2 rounded-full">
+                <Brain className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h4 className="font-medium mb-1">AI Template Assistant</h4>
+                <p className="text-sm text-muted-foreground">Tell me what kind of template you need, and I'll help you create it. For example: "Create a template for customers who abandoned luxury items" or "Design a friendly reminder for first-time visitors"</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex">
+            <div className="flex-1 relative">
+              <textarea
+                className="min-h-[80px] rounded-l-md w-full border border-r-0 p-3 text-sm focus:ring-1 focus:ring-primary"
+                placeholder="Describe what kind of template you need..."
+              />
+            </div>
+            <Button className="rounded-l-none">
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Generate
+            </Button>
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button variant="outline" className="w-full" onClick={() => router.push("/dashboard/ai-prompts")}>
+            Advanced Template Editor
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
   )
 }
 

@@ -86,20 +86,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           }
         } else {
           // Fallback to API call if session manager is not available
-          const response = await fetch('/api/auth/session', {
-            method: 'GET',
-            credentials: 'include',
-          });
-          
-          if (!response.ok) {
-            throw new Error('Session check failed');
-          }
-          
-          const data = await response.json();
-          
-          if (data.user) {
-            setUser(data.user);
-          } else {
+          try {
+            const response = await fetch('/api/auth/session', {
+              method: 'GET',
+              credentials: 'include',
+            });
+            
+            if (!response.ok) {
+              throw new Error('Session check failed');
+            }
+            
+            const data = await response.json();
+            
+            if (data.user) {
+              setUser(data.user);
+            } else {
+              setUser(null);
+            }
+          } catch (fetchError) {
+            logger.error(fetchError as Error, { context: 'auth:session-check-api' });
             setUser(null);
           }
         }
@@ -107,11 +112,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         logger.error(err as Error, { context: 'auth:session-check' });
         setUser(null);
       } finally {
+        // Ensure loading state changes even if errors occur
         setLoading(false);
       }
     };
     
     checkSession();
+
+    // Handle client-side navigation auth state
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkSession();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {

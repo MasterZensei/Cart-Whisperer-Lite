@@ -4,9 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Log environment variables status
-console.log('Supabase URL defined:', !!supabaseUrl);
-console.log('Supabase Key defined:', !!supabaseKey);
+// Log environment variables status (only in development)
+if (process.env.NODE_ENV === 'development') {
+  console.log('Supabase URL defined:', !!supabaseUrl);
+  console.log('Supabase Key defined:', !!supabaseKey);
+}
 
 if (!supabaseUrl || !supabaseKey) {
   console.error('Missing Supabase environment variables. Check your .env file.');
@@ -32,22 +34,43 @@ if (!supabaseUrl || !supabaseKey) {
 // But the client won't work properly without real credentials
 export const supabase = createClient(
   supabaseUrl || '',
-  supabaseKey || ''
+  supabaseKey || '',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
 );
 
 // Set up auth state from localStorage if running in browser
 if (typeof window !== 'undefined') {
   try {
-    const storedSession = localStorage.getItem('session');
-    if (storedSession) {
-      const parsedSession = JSON.parse(storedSession);
-      if (parsedSession.access_token) {
-        // Initialize the supabase client with the stored access token
-        console.log('Setting stored auth session from localStorage');
-        supabase.auth.setSession({
-          access_token: parsedSession.access_token,
-          refresh_token: parsedSession.refresh_token || '',
-        });
+    // Check if localStorage is available (prevents errors in some browsers)
+    if (window.localStorage) {
+      const storedSession = localStorage.getItem('session');
+      if (storedSession) {
+        try {
+          const parsedSession = JSON.parse(storedSession);
+          if (parsedSession && parsedSession.access_token) {
+            // Initialize the supabase client with the stored access token
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Setting stored auth session from localStorage');
+            }
+            
+            supabase.auth.setSession({
+              access_token: parsedSession.access_token,
+              refresh_token: parsedSession.refresh_token || '',
+            }).catch(err => {
+              console.error('Error setting auth session:', err);
+            });
+          }
+        } catch (parseError) {
+          console.error('Error parsing stored session:', parseError);
+          // Remove invalid session data
+          localStorage.removeItem('session');
+        }
       }
     }
   } catch (error) {
