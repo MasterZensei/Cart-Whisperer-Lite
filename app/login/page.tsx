@@ -15,11 +15,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const { loading, error } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loginStatus, setLoginStatus] = useState("")
   
   // Direct form submission approach to bypass React state issues
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setLoginStatus("Submitting login form...")
     
     try {
       console.log("Login form submitted directly for:", email)
@@ -33,26 +35,49 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       })
       
+      setLoginStatus(`API response received: ${response.status}`)
+      
       const data = await response.json()
       
       if (!response.ok) {
         console.error("Login failed:", data.error)
+        setLoginStatus(`Login failed: ${data.error || "Unknown error"}`)
         throw new Error(data.error || "Login failed")
       }
       
       console.log("Login successful, storing session data")
+      setLoginStatus("Login successful, storing data...")
       
       // Store authentication data in localStorage
       localStorage.setItem('user', JSON.stringify(data.user))
       localStorage.setItem('session', JSON.stringify(data.session))
       
       console.log("Redirecting to dashboard")
+      setLoginStatus("About to redirect...")
       
-      // Force page reload to dashboard
-      window.location.href = "/dashboard"
+      // Add a small delay before redirecting
+      setTimeout(() => {
+        try {
+          setLoginStatus("Executing redirect now...")
+          window.location.href = "/dashboard"
+        } catch (err) {
+          console.error("Error during redirect:", err)
+          setLoginStatus(`Redirect error: ${err}`)
+        }
+      }, 1000)
     } catch (err) {
       console.error("Error during login:", err)
+      setLoginStatus(`Error: ${err}`)
       setIsSubmitting(false)
+    }
+  }
+  
+  const goToDashboard = () => {
+    try {
+      window.location.href = "/dashboard"
+    } catch (err) {
+      console.error("Manual navigation error:", err)
+      setLoginStatus(`Manual navigation error: ${err}`)
     }
   }
 
@@ -71,6 +96,13 @@ export default function LoginPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+            
+            {loginStatus && (
+              <Alert>
+                <AlertDescription>{loginStatus}</AlertDescription>
+              </Alert>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -102,6 +134,11 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={loading || isSubmitting}>
               {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
+            
+            <Button type="button" className="w-full" variant="outline" onClick={goToDashboard}>
+              Manual Go To Dashboard
+            </Button>
+            
             <div className="text-center text-sm">
               Don&apos;t have an account?{" "}
               <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">

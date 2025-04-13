@@ -16,16 +16,26 @@ export default function DashboardPage() {
   
   console.log("Dashboard rendering, user:", user);
   
+  // Check localStorage directly to prevent unnecessary redirects
+  const hasLocalStorageUser = typeof window !== 'undefined' && localStorage.getItem('user');
+  
   // Check if user is authenticated
   useEffect(() => {
     console.log("Dashboard useEffect - auth check, user:", user);
-    if (!user) {
-      console.log("No user found, redirecting to login");
+    console.log("Dashboard - localStorage user exists:", !!hasLocalStorageUser);
+    
+    // Only redirect if both in-memory user and localStorage user are missing
+    if (!user && !hasLocalStorageUser) {
+      console.log("No user found anywhere, redirecting to login");
       router.push("/login")
+    } else if (!user && hasLocalStorageUser) {
+      console.log("User found in localStorage but not in state, this should resolve soon");
+      // We have a user in localStorage but not in memory yet
+      // This is likely a timing issue, so we'll let the auth provider catch up
     } else {
-      console.log("User authenticated in dashboard:", user.email);
+      console.log("User authenticated in dashboard:", user?.email);
     }
-  }, [user, router])
+  }, [user, router, hasLocalStorageUser])
 
   const handleSignOut = async () => {
     await signOut()
