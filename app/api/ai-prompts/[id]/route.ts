@@ -10,7 +10,7 @@ export async function PUT(
     const id = params.id
     
     // Get session to verify user is authenticated
-    const supabase = createRouteHandlerClient({ cookies })
+    const supabase = createRouteHandlerClient({ cookies: () => cookies() })
     const { data: { session } } = await supabase.auth.getSession()
     
     if (!session) {
@@ -107,7 +107,7 @@ export async function DELETE(
     const id = params.id
     
     // Get session to verify user is authenticated
-    const supabase = createRouteHandlerClient({ cookies })
+    const supabase = createRouteHandlerClient({ cookies: () => cookies() })
     const { data: { session } } = await supabase.auth.getSession()
     
     if (!session) {
