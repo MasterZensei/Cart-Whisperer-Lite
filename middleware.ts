@@ -37,8 +37,10 @@ export async function middleware(request: NextRequest) {
 
   // Allow direct access to login/signup pages even if logged in
   // This prevents redirect loops
-  if (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup') {
-    console.log('On login/signup page, passing through without redirects');
+  if (request.nextUrl.pathname === '/login' || 
+      request.nextUrl.pathname === '/signup' ||
+      request.nextUrl.pathname === '/direct-dashboard') {
+    console.log('On access/bypass page, passing through without redirects');
     return res;
   }
   
