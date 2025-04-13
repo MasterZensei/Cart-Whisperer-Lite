@@ -32,6 +32,10 @@ export default function DashboardPage() {
     router.push("/login")
   }
 
+  // Debug section to help diagnose auth issues
+  const [debugVisible, setDebugVisible] = useState(false);
+  const toggleDebug = () => setDebugVisible(!debugVisible);
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b">
@@ -43,6 +47,9 @@ export default function DashboardPage() {
                 <span className="text-sm text-muted-foreground">
                   {user.email}
                 </span>
+                <Button variant="outline" size="sm" onClick={toggleDebug}>
+                  Debug
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
                   Sign out
@@ -52,6 +59,25 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
+
+      {/* Debug information */}
+      {debugVisible && (
+        <div className="bg-gray-100 p-4 border rounded m-4">
+          <h3 className="font-bold">Debug Info</h3>
+          <div>
+            <p>User authenticated: {user ? 'Yes' : 'No'}</p>
+            {user && (
+              <>
+                <p>User ID: {user.id}</p>
+                <p>User Email: {user.email}</p>
+              </>
+            )}
+            <p>localStorage.user: {localStorage.getItem('user') ? 'Present' : 'Missing'}</p>
+            <p>localStorage.session: {localStorage.getItem('session') ? 'Present' : 'Missing'}</p>
+          </div>
+        </div>
+      )}
+      
       <main className="flex-1 p-6">
         <div className="container">
           <Tabs defaultValue="abandoned-carts">

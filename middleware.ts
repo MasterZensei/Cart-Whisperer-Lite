@@ -7,7 +7,8 @@ export async function middleware(request: NextRequest) {
   console.log('Middleware running on path:', request.nextUrl.pathname);
   
   // Create a Supabase client configured for use with middleware
-  const supabase = createMiddlewareClient({ req: request, res: NextResponse.next() })
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req: request, res })
   
   // Refresh session if expired
   await supabase.auth.getSession()
@@ -33,6 +34,13 @@ export async function middleware(request: NextRequest) {
   )
   
   console.log('Is protected route:', isProtectedRoute);
+
+  // Allow direct access to login/signup pages even if logged in
+  // This prevents redirect loops
+  if (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup') {
+    console.log('On login/signup page, passing through without redirects');
+    return res;
+  }
   
   // Redirect to login if trying to access a protected route without a session
   if (isProtectedRoute && !session) {
@@ -40,14 +48,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
   
-  // Redirect to dashboard if already logged in and trying to access login/signup
-  if ((request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup') && session) {
-    console.log('Already logged in, redirecting to dashboard');
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
-  
   console.log('Middleware passing through');
-  return NextResponse.next()
+  return res;
 }
 
 // Configure which routes the middleware should run on

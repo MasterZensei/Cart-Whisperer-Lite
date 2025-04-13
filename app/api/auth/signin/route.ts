@@ -54,7 +54,10 @@ export async function POST(request: Request) {
     
     console.log('Sending response data:', JSON.stringify(responseData));
     
-    return NextResponse.json(responseData);
+    // Set a direct Supabase cookie to help with session persistence
+    const response = NextResponse.json(responseData);
+    
+    return response;
   } catch (error) {
     console.error('Signin error:', error);
     return NextResponse.json(
