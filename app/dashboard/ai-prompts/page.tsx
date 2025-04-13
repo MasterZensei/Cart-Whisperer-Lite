@@ -332,8 +332,8 @@ export default function AIPromptsPage() {
             <CardHeader>
               <CardTitle>Create AI Prompt Template</CardTitle>
               <CardDescription>
-                Design your own custom AI prompt template. Use variables like {{"{{"}}customerName{{"}}"}}, {{"{{"}}itemsList{{"}}"}},
-                {{"{{"}}cartTotal{{"}}"}}, {{"{{"}}recoveryUrl{{"}}"}}, and {{"{{"}}storeName{{"}}"}} in your user prompt.
+                Design your own custom AI prompt template. Use variables like {'{{'} customerName {'}}'}, {'{{'} itemsList {'}}'}, 
+                {'{{'} cartTotal {'}}'}, {'{{'} recoveryUrl {'}}'}, and {'{{'} storeName {'}}'} in your user prompt.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -383,8 +383,8 @@ export default function AIPromptsPage() {
                 />
                 <p className="text-sm text-muted-foreground">
                   The user prompt contains the specific request and customer data variables. 
-                  Available variables: {{"{{"}}customerName{{"}}"}}, {{"{{"}}customerEmail{{"}}"}}, {{"{{"}}totalItems{{"}}"}}, 
-                  {{"{{"}}cartTotal{{"}}"}}, {{"{{"}}itemsList{{"}}"}}, {{"{{"}}storeName{{"}}"}}, {{"{{"}}recoveryUrl{{"}}"}}
+                  Available variables: {'{{'} customerName {'}}'}, {'{{'} customerEmail {'}}'}, {'{{'} totalItems {'}}'}, 
+                  {'{{'} cartTotal {'}}'}, {'{{'} itemsList {'}}'}, {'{{'} storeName {'}}'}, {'{{'} recoveryUrl {'}}'}
                 </p>
               </div>
             </CardContent>
@@ -487,8 +487,8 @@ export default function AIPromptsPage() {
                   onChange={(e) => setEditingTemplate({...editingTemplate, user_prompt: e.target.value})}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Available variables: {{"{{"}}customerName{{"}}"}}, {{"{{"}}customerEmail{{"}}"}}, {{"{{"}}totalItems{{"}}"}}, 
-                  {{"{{"}}cartTotal{{"}}"}}, {{"{{"}}itemsList{{"}}"}}, {{"{{"}}storeName{{"}}"}}, {{"{{"}}recoveryUrl{{"}}"}}
+                  Available variables: {'{{'} customerName {'}}'}, {'{{'} customerEmail {'}}'}, {'{{'} totalItems {'}}'}, 
+                  {'{{'} cartTotal {'}}'}, {'{{'} itemsList {'}}'}, {'{{'} storeName {'}}'}, {'{{'} recoveryUrl {'}}'}
                 </p>
               </div>
             </div>
