@@ -8,14 +8,8 @@ type User = {
   email: string;
 };
 
-type Session = {
-  access_token?: string;
-  expires_at?: number;
-};
-
 type AuthContextType = {
   user: User | null;
-  session: Session | null;
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string, storeName?: string) => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -25,7 +19,6 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
   signIn: async () => false,
   signUp: async () => false,
   signOut: async () => {},
@@ -41,90 +34,96 @@ type AuthProviderProps = {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  // Initialize auth state from localStorage on mount
-  useEffect(() => {
-    console.log("Auth provider initializing");
-    
+  // Get CSRF token for forms
+  const getCsrfToken = async () => {
     try {
-      const storedUser = localStorage.getItem('user');
-      const storedSession = localStorage.getItem('session');
-
-      console.log("Stored user found:", !!storedUser);
-      console.log("Stored session found:", !!storedSession);
-
-      if (storedUser && storedSession) {
-        const parsedUser = JSON.parse(storedUser);
-        const parsedSession = JSON.parse(storedSession);
-
-        console.log("Parsed stored user:", parsedUser);
-
-        // Check if session is expired
-        if (parsedSession.expires_at && parsedSession.expires_at * 1000 > Date.now()) {
-          console.log("Valid session found, setting user:", parsedUser.email);
-          setUser(parsedUser);
-          setSession(parsedSession);
-        } else {
-          // Clear if expired
-          console.log("Session expired, clearing localStorage");
-          localStorage.removeItem('user');
-          localStorage.removeItem('session');
-        }
+      const response = await fetch('/api/auth/csrf', {
+        method: 'GET',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to get CSRF token');
       }
+      
+      const data = await response.json();
+      return data.csrfToken;
     } catch (err) {
-      console.error("Error loading auth from localStorage:", err);
-      // Clear localStorage if there was an error parsing
-      localStorage.removeItem('user');
-      localStorage.removeItem('session');
+      console.error('Error getting CSRF token:', err);
+      return null;
     }
+  };
 
-    setLoading(false);
+  // Check user session on component mount
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        setLoading(true);
+        
+        const response = await fetch('/api/auth/session', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        
+        if (!response.ok) {
+          throw new Error('Session check failed');
+        }
+        
+        const data = await response.json();
+        
+        if (data.user) {
+          setUser(data.user);
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error('Session check error:', err);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    checkSession();
   }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
       setError(null);
-
-      console.log("Auth hook: starting sign in process");
+      
+      // Get CSRF token
+      const csrfToken = await getCsrfToken();
+      
+      if (!csrfToken) {
+        throw new Error('Unable to get CSRF token');
+      }
+      
+      // Submit login request with CSRF token
       const response = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken,
         },
+        credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
-      console.log("Auth hook: received API response", response.status);
 
       if (!response.ok) {
         throw new Error(data.error || 'Sign in failed');
       }
 
-      // Check if data has the right structure
-      if (!data.user || !data.user.id) {
-        console.error("Auth hook: Invalid user data received", data);
-        throw new Error('Invalid user data received');
-      }
-
-      console.log("Auth hook: setting user state", data.user.email);
       setUser(data.user);
-      setSession(data.session);
-
-      // Store in localStorage for persistence
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('session', JSON.stringify(data.session));
-      
-      console.log("Auth hook: sign in successful, can now redirect");
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed');
-      console.error('Auth hook: Sign in error:', err);
+      console.error('Sign in error:', err);
       return false;
     } finally {
       setLoading(false);
@@ -135,12 +134,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       setLoading(true);
       setError(null);
+      
+      // Get CSRF token
+      const csrfToken = await getCsrfToken();
+      
+      if (!csrfToken) {
+        throw new Error('Unable to get CSRF token');
+      }
 
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken,
         },
+        credentials: 'include',
         body: JSON.stringify({ email, password, storeName }),
       });
 
@@ -150,8 +158,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         throw new Error(data.error || 'Sign up failed');
       }
 
-      // After signup, sign in the user
-      return await signIn(email, password);
+      setUser(data.user);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
       console.error('Sign up error:', err);
@@ -168,15 +176,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       await fetch('/api/auth/signout', {
         method: 'POST',
+        credentials: 'include',
       });
 
       // Clear state
       setUser(null);
-      setSession(null);
-
-      // Remove from localStorage
-      localStorage.removeItem('user');
-      localStorage.removeItem('session');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign out failed');
       console.error('Sign out error:', err);
@@ -187,7 +191,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const value = {
     user,
-    session,
     signIn,
     signUp,
     signOut,

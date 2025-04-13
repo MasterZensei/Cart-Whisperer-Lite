@@ -6,6 +6,9 @@ import { recordEmailSent } from "@/lib/analytics"
 import { addTrackingToLinks } from "@/lib/email"
 import { generateStandardTemplate, generateDiscountTemplate, generateFomoTemplate } from "@/lib/fallback-templates"
 import { getEmailTemplates } from "@/lib/db-service"
+import { getUserAISettings, getPromptTemplate } from "@/lib/ai-service"
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 
 export async function POST(request: Request) {
   console.log("Generate email API called")
@@ -15,7 +18,7 @@ export async function POST(request: Request) {
     const body = await request.json()
 
     // Extract data from request
-    const { customer, cart, store, sendEmail = false, templateType = 'ai' } = body
+    const { customer, cart, store, sendEmail = false, templateType = 'ai', promptId = null } = body
 
     // Validate required data
     if (!customer || !customer.email) {
@@ -164,65 +167,139 @@ export async function POST(request: Request) {
     }
 
     console.log("Initializing OpenAI client")
-
+    
+    // Get user ID for fetching custom settings and prompts
+    const supabase = createRouteHandlerClient({ cookies })
+    const { data: { session } } = await supabase.auth.getSession()
+    const userId = session?.user?.id || 'anonymous'
+    
     try {
+      // Get user's AI settings
+      const aiSettings = await getUserAISettings(userId);
+      
       // Initialize OpenAI client
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       })
+      
+      // Get system and user prompts
+      let systemPrompt, userPrompt;
+      
+      if (promptId) {
+        // If a specific prompt template was requested, use it
+        const promptTemplate = await getPromptTemplate(promptId);
+        if (promptTemplate) {
+          systemPrompt = promptTemplate.system_prompt;
+          userPrompt = promptTemplate.user_prompt;
+        } else {
+          // Fall back to default if the requested template isn't found
+          systemPrompt = `You are an expert email marketer specializing in abandoned cart recovery with a proven track record of high conversion rates. 
+          
+          Create a personalized, compelling email to encourage the customer to complete their purchase. The email should be:
+          
+          1. Personalized to the customer and their specific cart items
+          2. Concise and focused on conversion
+          3. Including a sense of urgency without being pushy
+          4. Highlighting the benefits of the products they've selected
+          5. Formatted as clean, responsive HTML with inline CSS
+          6. Including a prominent, compelling call-to-action button
+          
+          Return your response as HTML that can be directly used in an email. Include a subject line at the beginning of your response prefixed with 'SUBJECT: '.
+          
+          The subject line should be attention-grabbing and personalized.`;
+          
+          userPrompt = `Generate a recovery email for a customer with these details:
+            
+          CUSTOMER INFORMATION:
+          - Name: {{customerName}}
+          - Email: {{customerEmail}}
+          
+          CART DETAILS:
+          - Total Items: {{totalItems}}
+          - Total Value: {{cartTotal}}
+          - Items in Cart:
+          {{itemsList}}
+          
+          STORE INFORMATION:
+          - Store Name: {{storeName}}
+          - Recovery URL: {{recoveryUrl}}
+          
+          ADDITIONAL CONTEXT:
+          - Make the email mobile-friendly
+          - Include a prominent "Complete Your Purchase" button linking to the recovery URL
+          - Keep the tone friendly and helpful, not pushy
+          - Suggest that their items might sell out soon if appropriate
+          - Include a small section addressing potential concerns (like shipping, returns, etc.)`;
+        }
+      } else {
+        // Use default prompts
+        systemPrompt = `You are an expert email marketer specializing in abandoned cart recovery with a proven track record of high conversion rates. 
+        
+        Create a personalized, compelling email to encourage the customer to complete their purchase. The email should be:
+        
+        1. Personalized to the customer and their specific cart items
+        2. Concise and focused on conversion
+        3. Including a sense of urgency without being pushy
+        4. Highlighting the benefits of the products they've selected
+        5. Formatted as clean, responsive HTML with inline CSS
+        6. Including a prominent, compelling call-to-action button
+        
+        Return your response as HTML that can be directly used in an email. Include a subject line at the beginning of your response prefixed with 'SUBJECT: '.
+        
+        The subject line should be attention-grabbing and personalized.`;
+        
+        userPrompt = `Generate a recovery email for a customer with these details:
+          
+        CUSTOMER INFORMATION:
+        - Name: {{customerName}}
+        - Email: {{customerEmail}}
+        
+        CART DETAILS:
+        - Total Items: {{totalItems}}
+        - Total Value: {{cartTotal}}
+        - Items in Cart:
+        {{itemsList}}
+        
+        STORE INFORMATION:
+        - Store Name: {{storeName}}
+        - Recovery URL: {{recoveryUrl}}
+        
+        ADDITIONAL CONTEXT:
+        - Make the email mobile-friendly
+        - Include a prominent "Complete Your Purchase" button linking to the recovery URL
+        - Keep the tone friendly and helpful, not pushy
+        - Suggest that their items might sell out soon if appropriate
+        - Include a small section addressing potential concerns (like shipping, returns, etc.)`;
+      }
+      
+      // Replace placeholders in the user prompt with actual values
+      userPrompt = userPrompt
+        .replace(/{{customerName}}/g, customer.name || "Valued Customer")
+        .replace(/{{customerEmail}}/g, customer.email)
+        .replace(/{{totalItems}}/g, totalItems.toString())
+        .replace(/{{cartTotal}}/g, typeof cart.total === "number" ? cart.total.toFixed(2) : cart.total)
+        .replace(/{{itemsList}}/g, itemsList)
+        .replace(/{{storeName}}/g, store?.name || "Our Store")
+        .replace(/{{recoveryUrl}}/g, cart.recoveryUrl || "https://example.com/cart");
 
-      console.log("Calling OpenAI API with model: gpt-3.5-turbo")
+      console.log(`Calling OpenAI API with model: ${aiSettings.model}`)
 
       try {
-        // Generate personalized email content using OpenAI
+        // Generate personalized email content using OpenAI with user's settings
         const completion = await openai.chat.completions.create({
-          model: "gpt-3.5-turbo",
+          model: aiSettings.model,
           messages: [
             {
               role: "system",
-              content: `You are an expert email marketer specializing in abandoned cart recovery with a proven track record of high conversion rates. 
-              
-              Create a personalized, compelling email to encourage the customer to complete their purchase. The email should be:
-              
-              1. Personalized to the customer and their specific cart items
-              2. Concise and focused on conversion
-              3. Including a sense of urgency without being pushy
-              4. Highlighting the benefits of the products they've selected
-              5. Formatted as clean, responsive HTML with inline CSS
-              6. Including a prominent, compelling call-to-action button
-              
-              Return your response as HTML that can be directly used in an email. Include a subject line at the beginning of your response prefixed with 'SUBJECT: '.
-              
-              The subject line should be attention-grabbing and personalized.`,
+              content: systemPrompt,
             },
             {
               role: "user",
-              content: `Generate a recovery email for a customer with these details:
-                
-                CUSTOMER INFORMATION:
-                - Name: ${customer.name || "Valued Customer"}
-                - Email: ${customer.email}
-                
-                CART DETAILS:
-                - Total Items: ${totalItems}
-                - Total Value: ${typeof cart.total === "number" ? cart.total.toFixed(2) : cart.total}
-                - Items in Cart:
-                ${itemsList}
-                
-                STORE INFORMATION:
-                - Store Name: ${store?.name || "Our Store"}
-                - Recovery URL: ${cart.recoveryUrl || "https://example.com/cart"}
-                
-                ADDITIONAL CONTEXT:
-                - Make the email mobile-friendly
-                - Include a prominent "Complete Your Purchase" button linking to the recovery URL
-                - Keep the tone friendly and helpful, not pushy
-                - Suggest that their items might sell out soon if appropriate
-                - Include a small section addressing potential concerns (like shipping, returns, etc.)
-              `,
+              content: userPrompt,
             },
           ],
-          max_tokens: 1000,
+          temperature: aiSettings.temperature,
+          max_tokens: aiSettings.maxTokens,
         })
 
         console.log("OpenAI API response received successfully")

@@ -1,83 +1,62 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/hooks/useAuth2"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, EyeIcon, EyeOffIcon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const { loading, error } = useAuth()
+  const [showPassword, setShowPassword] = useState(false)
+  const { signIn, loading, error, user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [loginStatus, setLoginStatus] = useState("")
+  const router = useRouter()
+  const { toast } = useToast()
   
-  // Direct form submission approach to bypass React state issues
+  // If user is already authenticated, redirect to dashboard
+  useEffect(() => {
+    if (user) {
+      router.push("/dashboard")
+    }
+  }, [user, router])
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    setLoginStatus("Submitting login form...")
     
     try {
-      console.log("Login form submitted directly for:", email)
+      const success = await signIn(email, password)
       
-      // Direct fetch to the API
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      })
-      
-      setLoginStatus(`API response received: ${response.status}`)
-      
-      const data = await response.json()
-      
-      if (!response.ok) {
-        console.error("Login failed:", data.error)
-        setLoginStatus(`Login failed: ${data.error || "Unknown error"}`)
-        throw new Error(data.error || "Login failed")
+      if (success) {
+        toast({
+          title: "Logged in successfully",
+          description: "Redirecting you to the dashboard...",
+        })
+        router.push("/dashboard")
+      } else {
+        toast({
+          title: "Login failed",
+          description: "Please check your credentials and try again.",
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
       }
-      
-      console.log("Login successful, storing session data")
-      setLoginStatus("Login successful, storing data...")
-      
-      // Store authentication data in localStorage
-      localStorage.setItem('user', JSON.stringify(data.user))
-      localStorage.setItem('session', JSON.stringify(data.session))
-      
-      console.log("Redirecting to dashboard")
-      setLoginStatus("About to redirect...")
-      
-      // Add a small delay before redirecting
-      setTimeout(() => {
-        try {
-          setLoginStatus("Executing redirect now...")
-          window.location.href = "/dashboard"
-        } catch (err) {
-          console.error("Error during redirect:", err)
-          setLoginStatus(`Redirect error: ${err}`)
-        }
-      }, 1000)
     } catch (err) {
       console.error("Error during login:", err)
-      setLoginStatus(`Error: ${err}`)
+      toast({
+        title: "Something went wrong",
+        description: err instanceof Error ? err.message : "An unknown error occurred",
+        variant: "destructive",
+      })
       setIsSubmitting(false)
-    }
-  }
-  
-  const goToDashboard = () => {
-    try {
-      window.location.href = "/dashboard"
-    } catch (err) {
-      console.error("Manual navigation error:", err)
-      setLoginStatus(`Manual navigation error: ${err}`)
     }
   }
 
@@ -97,12 +76,6 @@ export default function LoginPage() {
               </Alert>
             )}
             
-            {loginStatus && (
-              <Alert>
-                <AlertDescription>{loginStatus}</AlertDescription>
-              </Alert>
-            )}
-            
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -112,36 +85,64 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
+                <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500 transition-colors">
                   Forgot password?
                 </Link>
               </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="pr-10 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3 py-2 text-gray-400 hover:text-gray-900"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOffIcon className="h-4 w-4" />
+                  ) : (
+                    <EyeIcon className="h-4 w-4" />
+                  )}
+                  <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                </Button>
+              </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={loading || isSubmitting}>
-              {isSubmitting ? "Signing in..." : "Sign in"}
-            </Button>
-            
-            <Button type="button" className="w-full" variant="outline" onClick={goToDashboard}>
-              Manual Go To Dashboard
+            <Button 
+              type="submit" 
+              className="w-full transition-all bg-blue-600 hover:bg-blue-700" 
+              disabled={loading || isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Signing in...
+                </>
+              ) : (
+                "Sign in"
+              )}
             </Button>
             
             <div className="text-center text-sm">
               Don&apos;t have an account?{" "}
-              <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
+              <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
                 Sign up
               </Link>
             </div>

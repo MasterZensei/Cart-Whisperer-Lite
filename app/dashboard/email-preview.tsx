@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -11,9 +11,15 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2 } from "lucide-react"
+import { Loader2, Check } from "lucide-react"
 import type { MockCart } from "@/lib/mock-data"
 import { toast } from "@/hooks/use-toast"
+import { Card, CardContent } from "@/components/ui/card"
+import { Toast } from "@/components/ui/toast"
+import { useToast } from "@/components/ui/use-toast"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AIPromptTemplate } from "@/lib/ai-service"
 
 interface EmailPreviewProps {
   cart: MockCart | null
@@ -27,6 +33,25 @@ export function EmailPreview({ cart, onClose }: EmailPreviewProps) {
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
   const [activeTab, setActiveTab] = useState<string>("preview")
+  const [promptTemplates, setPromptTemplates] = useState<AIPromptTemplate[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const { toast: useToastToast } = useToast()
+
+  useEffect(() => {
+    async function loadPromptTemplates() {
+      try {
+        const response = await fetch("/api/ai-prompts")
+        if (response.ok) {
+          const data = await response.json()
+          setPromptTemplates(data.templates || [])
+        }
+      } catch (error) {
+        console.error("Error loading prompt templates:", error)
+      }
+    }
+
+    loadPromptTemplates()
+  }, [])
 
   async function generateEmail() {
     if (!cart) return
@@ -35,51 +60,48 @@ export function EmailPreview({ cart, onClose }: EmailPreviewProps) {
     setError(null)
 
     try {
+      const payload = {
+        customer: {
+          email: cart.customerEmail,
+          name: cart.customerName,
+        },
+        cart: {
+          items: cart.items,
+          total: cart.totalPrice,
+          recoveryUrl: cart.recoveryUrl,
+          id: cart.id,
+        },
+        store: {
+          name: "Your Store",
+        },
+        templateType: 'ai',
+        promptId: selectedTemplateId,
+      }
+
       const response = await fetch("/api/generate-email", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          customer: {
-            name: cart.customerName || "Valued Customer",
-            email: cart.customerEmail,
-          },
-          cart: {
-            id: cart.id,
-            items: cart.items,
-            total: cart.totalPrice,
-            recoveryUrl: cart.recoveryUrl,
-          },
-          store: {
-            name: "Your Store",
-            id: "demo-store",
-          },
-        }),
+        body: JSON.stringify(payload),
       })
 
-      // Check if the response is OK before trying to parse JSON
       if (!response.ok) {
-        const contentType = response.headers.get("content-type")
-
-        if (contentType && contentType.includes("application/json")) {
-          // If it's JSON, parse it
-          const errorData = await response.json()
-          throw new Error(errorData.error || `Server error: ${response.status}`)
-        } else {
-          // If it's not JSON, get the text
-          const errorText = await response.text()
-          throw new Error(`Server error: ${errorText.substring(0, 100)}...`)
-        }
+        throw new Error(`Failed to generate email: ${response.statusText}`)
       }
 
       const data = await response.json()
       setEmailContent(data.emailContent)
       setSubject(data.subject)
+      
+      useToastToast({
+        title: "Email Generated",
+        description: "Your recovery email has been generated successfully.",
+      })
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred"
+      const errorMessage = err instanceof Error ? err.message : "Failed to generate email"
       setError(errorMessage)
-      toast({
+      useToastToast({
         title: "Error",
         description: errorMessage,
         variant: "destructive",
@@ -137,14 +159,14 @@ export function EmailPreview({ cart, onClose }: EmailPreviewProps) {
 
       const data = await response.json()
       setSent(true)
-      toast({
+      useToastToast({
         title: "Success",
         description: `Recovery email sent to ${cart.customerEmail}`,
       })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to send email"
       setError(errorMessage)
-      toast({
+      useToastToast({
         title: "Error",
         description: errorMessage,
         variant: "destructive",
@@ -166,6 +188,26 @@ export function EmailPreview({ cart, onClose }: EmailPreviewProps) {
 
         {!emailContent && !loading && !error && (
           <div className="flex flex-col items-center justify-center py-8">
+            <div className="w-full max-w-sm mb-6">
+              <Label htmlFor="template-select" className="mb-2 block">Select AI Prompt Template (Optional)</Label>
+              <Select onValueChange={(value) => setSelectedTemplateId(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Default Template" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Default Template</SelectItem>
+                  {promptTemplates.map((template) => (
+                    <SelectItem 
+                      key={template.id} 
+                      value={template.id}
+                    >
+                      {template.name} {template.is_default && "(System)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
             <p className="mb-4 text-center">
               Generate an AI-powered recovery email for {cart?.customerName || cart?.customerEmail || "this customer"}
             </p>
