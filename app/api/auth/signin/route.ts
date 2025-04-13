@@ -41,6 +41,7 @@ export async function POST(request: Request) {
       console.error('Warning: Session data incomplete', data.session);
     }
     
+    // Provide the complete session data for client-side storage
     const responseData = {
       user: {
         id: data.user.id,
@@ -48,11 +49,13 @@ export async function POST(request: Request) {
       },
       session: {
         access_token: data.session?.access_token,
+        refresh_token: data.session?.refresh_token,
         expires_at: data.session?.expires_at,
+        user: data.session?.user,
       },
     };
     
-    console.log('Sending response data:', JSON.stringify(responseData));
+    console.log('Sending response data with complete session');
     
     // Set a direct Supabase cookie to help with session persistence
     const response = NextResponse.json(responseData);

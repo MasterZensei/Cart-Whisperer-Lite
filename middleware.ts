@@ -44,10 +44,12 @@ export async function middleware(request: NextRequest) {
     return res;
   }
   
-  // Redirect to login if trying to access a protected route without a session
-  if (isProtectedRoute && !session) {
-    console.log('No session, redirecting to login');
-    return NextResponse.redirect(new URL('/login', request.url))
+  // If we're on a protected route without a Supabase session, let the client-side
+  // auth system handle it instead of redirecting here.
+  // This fixes the potential redirect loop with localStorage-based auth
+  if (isProtectedRoute) {
+    console.log('Protected route, allowing client-side auth check');
+    return res;
   }
   
   console.log('Middleware passing through');
